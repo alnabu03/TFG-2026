@@ -4,12 +4,11 @@ import math
 
 #1. Configuramos la cámara, pongo (1) porque voy a usar la cámara de ivcam desde el móvil
 cap = cv2.VideoCapture(1)
-
 #2. Cargamos el diccionario de Aruco, uso el de 4x4 con 50 marcadores, pero hay otros tipos de diccionarios disponibles
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 aruco_params = cv2.aruco.DetectorParameters()
 
-detector = cv2.aruco.Detector(aruco_dict, aruco_params)
+detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
 print("Iniciando detección de Aruco. Presiona 'q' para salir.")
 
@@ -53,9 +52,10 @@ while True:
             cv2.putText(frame, texto, (center_x - 50, center_y - 20), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
             #Mostramos la imagen
-            cv2.imshow("Aruco Detection", frame)
-            #Para salir con la letra q
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
+    cv2.imshow("Aruco Detection", frame)
+    key = cv2.waitKey(1) & 0xFF
+    #Para salir con la letra q
+    if key == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
