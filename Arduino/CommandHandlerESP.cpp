@@ -54,6 +54,9 @@ void CommandHandlerESP::step() {
     }
 
     procesarComandoProgramado();
+    if (modoPidActivo) {
+        calcularYEjecutarPID();
+    }
 }
 
 void CommandHandlerESP::procesarMensaje(String mensaje) {
@@ -288,7 +291,7 @@ void CommandHandlerESP::ejecutarComando(String comando) {
         robot->parar();
         modoPidActivo = false;
     }
-    else if (comando.startsWith(id + "PID_DATA")) {
+    else if (comando.startsWith(id + "PID_DATA")) { //esta funcion hace lo que hace split() en python, elimina espacios al principio y al final
         String data = comando.substring(id.length() + 10);
         data.trim();
         
@@ -323,4 +326,46 @@ void CommandHandlerESP::ejecutarComando(String comando) {
         Serial.print("Comando no reconocido: ");
         Serial.println(comando);
     }
+
+}
+
+void CommandHandlerESP::calcularYEjecutarPID(){
+    unsigned long ahora = millis();
+    float dt = (ahora - ultimoTiempoPid) / 1000.0;
+    if(dt <= 0) return;
+    ultimoTiempoPid = ahora;
+
+    float dx = x_obj - x_act;
+    float dy = y_obj - y_act;
+    float error_dist = sqrt(dx*dx + dy*dy);
+    if (error_dist < 20.0)){
+        robot->parar();
+        modoPidActivo = false;
+        Serial.println("Objetivo alcanzado, deteniendo robot.");
+        return;
+    }
+
+    float angulo_objetivo_rad = atan2(-dy,dx);
+    float angulo_actual_rad = th_act * PI / 180.0;
+    float error_ang = angulo_objetivo_rad - angulo_actual_rad;
+    error_ang = atan2(sin(error_ang), cos(error_ang)); // Normalizar a [-pi, pi]
+    //Ajustes del PID (podemos jugar con estos valores)
+    float kp_dist = 0.5; //Potencia de avance (el maqueen tiene de 0 a 255)
+    float kp_ang = 60; //Potencia de giro
+
+    float velocidad_avancce = kp_dist * error_dist;
+    float velocidad_giro = kp_ang * error_ang;
+    if (abs(error_ang) > PI / 4) {
+        velocidad_avancce = 0; // Si el error angular es mayor de 45, solo giramos
+    }
+    float vel_izquierda = velocidad_avancce - velocidad_giro;
+    float vel_derecha = velocidad_avancce + velocidad_giro;
+    //limitamos velocidades al rango del maqueen (0 a 255)
+    if (vel_izquierda > 255) vel_izquierda = 255;
+    if (vel_izquierda < -255) vel_izquierda = -255;
+    if (vel_derecha > 255) vel_derecha = 255;
+    if (vel_derecha < -255) vel_derecha = -255; 
+
+    robot->moverVelocidades((int)vel_izquierda, (int)vel_derecha);
+
 }
