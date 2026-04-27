@@ -17,6 +17,8 @@ CommandHandlerESP::CommandHandlerESP(WiFiClient* tcpClient, const char* robotId,
     this->stopAtLocalMs = 0;
     this->useLocalStopTimer = false;
     this->ntpInitialized = false;
+    this->modoPidActivo = false;
+    this->ultimoTiempoPid = 0;
 }
 
 void CommandHandlerESP::step() {
@@ -74,6 +76,7 @@ bool CommandHandlerESP::esComandoParaMi(String mensaje) {
     if (mensaje == id + " IZQUIERDA") return true;
     if (mensaje == id + " DERECHA") return true;
     if (mensaje == id + " PARA") return true;
+    if(mensaje == id + " PID_DATA") return true;
 
     return false;
 }
@@ -283,6 +286,38 @@ void CommandHandlerESP::ejecutarComando(String comando) {
     else if (comando == id + " PARA") {
         Serial.println("ORDEN RECIBIDA: PARAR");
         robot->parar();
+        modoPidActivo = false;
+    }
+    else if (comando.startsWith(id + "PID_DATA")) {
+        String data = comando.substring(id.length() + 10);
+        data.trim();
+        
+        int partes [6];
+        int idx = 0;
+        int from = 0;
+        int to = data.indexOf(' ');
+        String tokens[6];
+
+        while (to != -1 && idx < 5) {
+            tokens[idx++] = data.substring(from, to);
+            from = to + 1;
+            to = data.indexOf(' ', from);
+        }
+        tokens[idx] = data.substring(from);
+        if (idx == 5) {
+            x_act = tokens[0].toFloat();
+            y_act = tokens[1].toFloat();
+            th_act = tokens[2].toFloat();
+            x_obj = tokens[3].toFloat();
+            y_obj = tokens[4].toFloat();
+            th_obj = tokens[5].toFloat();
+            modoPidActivo = true;
+            if (ultimoTiempoPid == 0) {
+                ultimoTiempoPid = millis();
+            }
+        } else {
+            Serial.println("Datos PID mal formateados: " + data);
+        }
     }
     else {
         Serial.print("Comando no reconocido: ");

@@ -27,10 +27,15 @@ private:
     unsigned long stopAtLocalMs;
     bool useLocalStopTimer;
     bool ntpInitialized;
+    bool modoPidActivo;
+    float x_act, y_act, th_act;
+    float x_obj, y_obj, th_obj;
+    unsigned long ultimoTiempoPid;
 
     bool encolarComandoProgramado(const ScheduledCommand& cmd);
     bool desencolarComandoProgramado(ScheduledCommand* outCmd);
     bool verPrimerComandoProgramado(ScheduledCommand* outCmd) const;
+    
 
 public:
     CommandHandlerESP(WiFiClient* tcpClient, const char* robotId, RobotController* robot);
@@ -44,6 +49,7 @@ public:
     void procesarComandoProgramado();
     unsigned long long currentEpochMillis() const;
     void initNtpIfNeeded();
+    void calcularYEjecutarPID();
 };
 
 #endif
