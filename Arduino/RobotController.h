@@ -17,6 +17,8 @@ public:
     void girarIzquierda();
     void girarDerecha();
     void parar();
+    void moverVelocidades(int VelIzquierda, int VelDerecha);
+
 };
 
 #endif
