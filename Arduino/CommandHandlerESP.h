@@ -31,6 +31,7 @@ private:
     float x_act, y_act, th_act;
     float x_obj, y_obj, th_obj;
     unsigned long ultimoTiempoPid;
+    unsigned long ultimoMensajePidMs;
 
     bool encolarComandoProgramado(const ScheduledCommand& cmd);
     bool desencolarComandoProgramado(ScheduledCommand* outCmd);

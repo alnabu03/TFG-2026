@@ -316,7 +316,7 @@ void CommandHandlerESP::ejecutarComando(String comando) {
             th_obj = tokens[5].toFloat();
             modoPidActivo = true;
             if (ultimoTiempoPid == 0) {
-                ultimoTiempoPid = millis();
+                ultimoMensajePidsMs = millis();
             }
         } else {
             Serial.println("Datos PID mal formateados: " + data);
@@ -330,6 +330,12 @@ void CommandHandlerESP::ejecutarComando(String comando) {
 }
 
 void CommandHandlerESP::calcularYEjecutarPID(){
+    if (millis() - ultimoMensajePidsMs > 1000){
+        robot->parar();
+        modoPidActivo = false;
+        Serial.println("No se han recibido datos PID en el último segundo, deteniendo robot por seguridad.");
+        return;
+    }
     unsigned long ahora = millis();
     float dt = (ahora - ultimoTiempoPid) / 1000.0;
     if(dt <= 0) return;
