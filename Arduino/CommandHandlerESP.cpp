@@ -41,8 +41,8 @@ void CommandHandlerESP::step() {
             buffer.trim();
 
             if (buffer.length() > 0) {
-                Serial.print("Mensaje recibido del servidor: ");
-                Serial.println(buffer);
+                //Serial.print("Mensaje recibido del servidor: ");
+                //Serial.println(buffer); LOS COMENTO PARA NO LLENAR EL SERIAL DE MENSAJES, PERO PUEDEN SER ÚTILES PARA DEPURAR
 
                 procesarMensaje(buffer);
             }
@@ -291,40 +291,26 @@ void CommandHandlerESP::ejecutarComando(String comando) {
         robot->parar();
         modoPidActivo = false;
     }
-    else if (comando.startsWith(id + "PID_DATA")) { //esta funcion hace lo que hace split() en python, elimina espacios al principio y al final
-        String data = comando.substring(id.length() + 10);
-        data.trim();
+    else if (comando.startsWith(id + " PID_DATA")) {
+        // Obtenemos un puntero al inicio de los números, saltándonos "EP1 PID_DATA "
+        String prefijo = id + " PID_DATA ";
+        const char* datos = comando.c_str() + prefijo.length();
         
-        int partes [6];
-        int idx = 0;
-        int from = 0;
-        int to = data.indexOf(' ');
-        String tokens[6];
+        // Variables temporales
+        float xa, ya, tha, xo, yo, tho;
 
-        while (to != -1 && idx < 5) {
-            tokens[idx++] = data.substring(from, to);
-            from = to + 1;
-            to = data.indexOf(' ', from);
-        }
-        tokens[idx] = data.substring(from);
-        if (idx == 5) {
-            x_act = tokens[0].toFloat();
-            y_act = tokens[1].toFloat();
-            th_act = tokens[2].toFloat();
-            x_obj = tokens[3].toFloat();
-            y_obj = tokens[4].toFloat();
-            th_obj = tokens[5].toFloat();
+        // La magia de sscanf: Busca 6 números flotantes (%f) separados por espacios
+        // y los guarda directamente en las variables de forma instantánea.
+        if (sscanf(datos, "%f %f %f %f %f %f", &xa, &ya, &tha, &xo, &yo, &tho) == 6) {
+            x_act = xa; y_act = ya; th_act = tha;
+            x_obj = xo; y_obj = yo; th_obj = tho;
+            
             modoPidActivo = true;
-            if (ultimoTiempoPid == 0) {
-                ultimoMensajePidsMs = millis();
-            }
+            if (ultimoTiempoPid == 0) ultimoTiempoPid = millis();
+            ultimoMensajePidMs = millis(); // Nuestro Watchdog protector
         } else {
-            Serial.println("Datos PID mal formateados: " + data);
+            Serial.println("Error: Formato PID_DATA incorrecto.");
         }
-    }
-    else {
-        Serial.print("Comando no reconocido: ");
-        Serial.println(comando);
     }
 
 }
