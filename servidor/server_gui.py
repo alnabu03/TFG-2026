@@ -1040,12 +1040,14 @@ class ServerGUI:
             )
             return
 
-        if fuente_texto.isdigit():
-            fuente_texto = int(fuente_texto)
-        else:
-            fuente = fuente_texto  # Puede ser una URL o ruta de archivo
+        # 1. Leemos lo que has escrito en la interfaz justo antes de encender la cámara
+        fuente_texto = self.entry_fuente_aruco.get().strip() or "0"
 
-        cap = cv2.VideoCapture((fuente_texto))
+        # 2. Truco Python: si es un número lo convierte, si es una URL lo deja como texto
+        fuente = int(fuente_texto) if fuente_texto.isdigit() else fuente_texto
+
+        # 3. Abrimos la cámara con la fuente correcta
+        cap = cv2.VideoCapture(fuente)
         if not cap.isOpened():
             self._escribir_log_desde_hilo(
                 f"Giro por grados cancelado: no se pudo abrir la cámara '{fuente}'."
