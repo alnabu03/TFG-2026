@@ -1,13 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox
-import sys
 import threading
 import time
 import traceback
-from pathlib import Path
-
 import cv2
-
 from choreography import PasoBaile, ReproductorBaile, parsear_baile
 from discover import DiscoveryServer
 from tcp_server import TcpServer
@@ -64,8 +60,6 @@ class ServerGUI:
         self.detecciones_aruco_ts = 0.0
         self.hilo_alineacion = None
         self.detener_alineacion_evento = threading.Event()
-        self.vision_dir = Path(__file__).resolve().parent / "vision_aruco"
-
         # ====== INTERFAZ ======
         contenedor_principal = tk.Frame(root)
         contenedor_principal.pack(padx=10, pady=10, fill="both", expand=True)
@@ -599,7 +593,6 @@ class ServerGUI:
 
     def _bucle_alineacion_inicial(self, fuente, mapa_tokens, objetivo_tokens):
         try:
-            sys.path.append(str(self.vision_dir))
             mapa = {}
             for token in mapa_tokens: #convertimos el mapa de texto a diccionario
                 marker_txt, robot_id = token.split(":", maxsplit=1)
@@ -1047,9 +1040,12 @@ class ServerGUI:
             )
             return
 
-        fuente = self.entry_fuente_aruco.get().strip() or "0"
-        cap = cv2.VideoCapture((fuente))
-        configurar_captura(cap, ARUCO_FRAME_WIDTH, ARUCO_FRAME_HEIGHT)
+        if fuente_texto.isdigit():
+            fuente_texto = int(fuente_texto)
+        else:
+            fuente = fuente_texto  # Puede ser una URL o ruta de archivo
+
+        cap = cv2.VideoCapture((fuente_texto))
         if not cap.isOpened():
             self._escribir_log_desde_hilo(
                 f"Giro por grados cancelado: no se pudo abrir la cámara '{fuente}'."
@@ -1065,16 +1061,18 @@ class ServerGUI:
 
         inicio_theta_por_robot = {}
         fecha_limite_inicio = time.time() + 2.5
+
+        #---Buscar ángulo inicial---
         while time.time() < fecha_limite_inicio and len(inicio_theta_por_robot) < len(robots):
             ok, frame = cap.read()
             if not ok:
                 continue
-            detecciones, _, _, _ = detectar_marcadores(frame, detector)
-            por_marker = {d.marker_id: d for d in detecciones}
+
+            poses_detectadas, _ = detectar_poses_robot(frame, detector)
             for robot_id in robots:
                 marker_id = marker_por_robot[robot_id]
-                if marker_id in por_marker and robot_id not in inicio_theta_por_robot:
-                    inicio_theta_por_robot[robot_id] = por_marker[marker_id].theta_grados
+                if marker_id in poses_detectadas and robot_id not in inicio_theta_por_robot:
+                    inicio_theta_por_robot[robot_id] = poses_detectadas[marker_id]["theta"]
 
         no_detectados = [robot_id for robot_id in robots if robot_id not in inicio_theta_por_robot]
         if no_detectados:
@@ -1100,23 +1098,25 @@ class ServerGUI:
         ventana = f"Giro ARUCO en vivo ({direccion})"
         ventana_mostrada = False
         inicio_ts = time.time()
+        
         while pendientes and (time.time() - inicio_ts) <= GIRO_GRADOS_TIMEOUT_S:
             ok, frame = cap.read()
             if not ok:
                 time.sleep(0.01)
                 continue
-            detecciones, _, _, _ = detectar_marcadores(frame, detector)
-            por_marker = {d.marker_id: d for d in detecciones}
+
+            poses_detectadas, frame_dibujado = detectar_poses_robot(frame, detector)
 
             finalizados = []
             for robot_id in list(pendientes):
                 marker_id = marker_por_robot[robot_id]
-                deteccion = por_marker.get(marker_id)
-                if deteccion is None:
+                if marker_id not in poses_detectadas:
                     continue
+
+                pose_actual = poses_detectadas[marker_id]
                 progreso = self._delta_giro_en_direccion(
                     inicio_theta_por_robot[robot_id],
-                    deteccion.theta_grados,
+                    pose_actual["theta"],
                     direccion,
                 )
                 if progreso >= objetivo_parada:
@@ -1145,7 +1145,7 @@ class ServerGUI:
                     2,
                     cv2.LINE_AA,
                 )
-                cv2.imshow(ventana, frame)
+                cv2.imshow(ventana, frame_dibujado)
                 ventana_mostrada = True
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self._escribir_log_desde_hilo(
