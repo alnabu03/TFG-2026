@@ -11,19 +11,7 @@ import cv2
 from choreography import PasoBaile, ReproductorBaile, parsear_baile
 from discover import DiscoveryServer
 from tcp_server import TcpServer
-from vision_aruco.detector_aruco import (
-    DICCIONARIOS_ARUCO,
-    configurar_captura,
-    detectar_marcadores,
-    dibujar_detecciones,
-    interpretar_fuente,
-)
-from vision_aruco.go_to_pose_controller import (
-    AlignState,
-    ControlConfig,
-    GoToPoseController,
-    Pose2D,
-)
+from vision_Aruco import detectar_poses_robot
 
 
 ARUCO_FRAME_WIDTH = 1280
@@ -506,8 +494,13 @@ class ServerGUI:
         self.escribir_log("Cámara ARUCO detenida.")
 
     def _bucle_camara_aruco(self, fuente_texto: str):
-        cap = cv2.VideoCapture(interpretar_fuente(fuente_texto))
-        configurar_captura(cap, ARUCO_FRAME_WIDTH, ARUCO_FRAME_HEIGHT)
+        
+        if fuente_texto.isdigit():
+            fuente_texto = int(fuente_texto)
+        else:
+            fuente = fuente_texto  # Puede ser una URL o ruta de archivo
+
+        cap = cv2.VideoCapture((fuente_texto))
 
         if not cap.isOpened():
             self._escribir_log_desde_hilo(
@@ -516,7 +509,7 @@ class ServerGUI:
             return
 
         detector = cv2.aruco.ArucoDetector(
-            cv2.aruco.getPredefinedDictionary(DICCIONARIOS_ARUCO["DICT_4X4_50"]),
+            cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),
             cv2.aruco.DetectorParameters(),
         )
 
@@ -527,23 +520,14 @@ class ServerGUI:
                 if not ok:
                     time.sleep(0.01)
                     continue
-
-                detecciones, corners, ids, rejected = detectar_marcadores(frame, detector)
+                poses_detectadas, frame_dibujado = detectar_poses_robot(frame,detector)
                 with self.lock_detecciones_aruco:
                     self.detecciones_aruco_por_marker = {
-                        d.marker_id: d.theta_grados for d in detecciones
+                        marker_id: pose["theta"] for marker_id, pose in poses_detectadas.items()
                     }
                     self.detecciones_aruco_ts = time.time()
 
-                dibujar_detecciones(
-                    frame=frame,
-                    detecciones=detecciones,
-                    corners=corners,
-                    ids=ids,
-                    rejected=rejected,
-                    mostrar_rechazados=False,
-                )
-                cv2.imshow(ventana, frame)
+                cv2.imshow(ventana, frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self._escribir_log_desde_hilo(
                         "Cámara ARUCO detenida manualmente desde la ventana (tecla q)."
@@ -613,57 +597,9 @@ class ServerGUI:
             }
         return objetivos
 
-    def _crear_control_config(self):
-        return ControlConfig(
-            tolerancia_x_px=18.0,
-            tolerancia_y_px=18.0,
-            tolerancia_theta_deg=6.0,
-            tolerancia_theta_fina_deg=1.0,
-            theta_no_avance_deg=24.0,
-            theta_approach_enter_deg=18.0,
-            theta_approach_exit_deg=26.0,
-            dist_final_enter_px=75.0,
-            dist_final_exit_px=95.0,
-            k_lineal=0.010,
-            k_angular=0.055,
-            v_max=1.0,
-            w_max=1.0,
-            v_min_efectiva=0.22,
-            w_min_efectiva=0.20,
-            w_min_angular_fino=0.10,
-            w_max_angular_fino=0.35,
-            pose_ema_alpha=0.35,
-            settle_cycles_required=10,
-            pose_stable_frames=4,
-            lost_marker_grace_frames=4,
-            lost_marker_max_frames=40,
-            timeout_rotate_s=12.0,
-            timeout_approach_s=20.0,
-            timeout_final_s=12.0,
-            timeout_total_s=45.0,
-            pulse_min_s=0.07,
-            pulse_max_s=0.16,
-            pulse_micro_s=0.045,
-            pulse_orient_min_s=0.020,
-            pulse_orient_max_s=0.080,
-            micro_zone_dist_px=45.0,
-            orient_cooldown_s=0.080,
-            orient_sign_flip_reduce_factor=0.65,
-            orient_stable_cycles_required=4,
-            pose_hold_s=0.35,
-        )
-
     def _bucle_alineacion_inicial(self, fuente, mapa_tokens, objetivo_tokens):
         try:
             sys.path.append(str(self.vision_dir))
-            import cv2
-            from detector_aruco import (
-                DICCIONARIOS_ARUCO,
-                detectar_marcadores,
-                dibujar_detecciones,
-                interpretar_fuente,
-            )
-
             mapa = {}
             for token in mapa_tokens: #convertimos el mapa de texto a diccionario
                 marker_txt, robot_id = token.split(":", maxsplit=1)
@@ -676,33 +612,20 @@ class ServerGUI:
                 )
                 return
 
-            diccionario = cv2.aruco.getPredefinedDictionary(DICCIONARIOS_ARUCO["DICT_4X4_50"])
-            detector = cv2.aruco.ArucoDetector(diccionario, cv2.aruco.DetectorParameters())
+            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+            aruco_params = cv2.aruco.DetectorParameters()
+            detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
-            cap = cv2.VideoCapture(interpretar_fuente(fuente))
+            if fuente.isdigit():
+                fuente = int(fuente)
+            cap = cv2.VideoCapture(fuente)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, ARUCO_FRAME_WIDTH)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, ARUCO_FRAME_HEIGHT)
+
             if not cap.isOpened():
                 self._escribir_log_desde_hilo("Alineación: no se pudo abrir la cámara.")
                 return
-
-            config = self._crear_control_config()
-            controladores = {
-                robot_id: GoToPoseController(
-                    robot_id=robot_id,
-                    objetivo=Pose2D(
-                        x=objetivos[robot_id]["x"],
-                        y=objetivos[robot_id]["y"],
-                        theta_deg=objetivos[robot_id]["theta"],
-                    ),
-                    cfg=config,
-                )
-                for robot_id in objetivos
-            }
-            actuadores = {
-                robot_id: {"accion_actual": "", "fin_accion_ts": 0.0}
-                for robot_id in objetivos
-            }
+        
             frames_invalidos = 0
             max_frames_invalidos = 20
 
@@ -723,96 +646,39 @@ class ServerGUI:
                         break
                     time.sleep(0.05)
                     continue
+
                 frames_invalidos = 0
-
-                detecciones, corners, ids, rejected = detectar_marcadores(frame, detector) #detectar marcadores devuelve una lista de objetos DeteccionMarcador (marker_id, centro_x, centro_y, theta_grados), las esquinas de cada marcador detectado, los ids de cada marcador detectado y las esquinas de los candidatos a marcadores que fueron rechazados.
-                dibujar_detecciones(frame, detecciones, corners, ids, rejected, False)
-
+                poses_detectadas, frame_dibujado = detectar_poses_robot(frame, detector)
                 pose_por_robot = {}
-                for d in detecciones: #como detecciones tiene 2 objetos de tipo DeteccionMarcador, uno por cada marcador detectado, pues para cada deteccion, es decir, d1 y d2, tenemos marker_id, centro_x, centro_y y theta_grados. Entonces, si el marker_id de esa deteccion está en el mapa (es decir, si es uno de los marcadores que estamos usando para la alineación), entonces guardamos en pose_por_robot la información de posición y orientación de ese robot (usando el robot_id del mapa) para luego decidir qué acción tomar.  
-                    if d.marker_id in mapa:
-                        pose_por_robot[mapa[d.marker_id]] = { #ejemplo "EP1": {"x": 320, "y": 280, "theta": 10},"EP2": {"x": 690, "y": 260, "theta": -5},
-                            "x": d.centro_x,
-                            "y": d.centro_y,
-                            "theta": d.theta_grados,
-                        }
-
-                todos_ok = True
-                ahora = time.monotonic()
-
-                for robot_id, objetivo in objetivos.items():
-                    actuador = actuadores[robot_id]
-                    controlador = controladores[robot_id]
-
-                    # Si hubo un pulso activo, corta con PARA al terminar.
-                    if actuador["accion_actual"] and ahora >= actuador["fin_accion_ts"]:
-                        self.enviar_comando_simple(robot_id, "PARA")
-                        actuador["accion_actual"] = ""
-
-                    pose_raw = None
+                for marker_id, pose in poses_detectadas.items(): #como detecciones tiene 2 objetos de tipo DeteccionMarcador, uno por cada marcador detectado, pues para cada deteccion, es decir, d1 y d2, tenemos marker_id, centro_x, centro_y y theta_grados. Entonces, si el marker_id de esa deteccion está en el mapa (es decir, si es uno de los marcadores que estamos usando para la alineación), entonces guardamos en pose_por_robot la información de posición y orientación de ese robot (usando el robot_id del mapa) para luego decidir qué acción tomar.  
+                    if marker_id in mapa:
+                        robot_id = mapa[marker_id]
+                        pose_por_robot[robot_id] = pose 
+                for robot_id, objetivo in objetivos.items(): #para cada robot que estamos alineando, comparamos su pose actual (pose_por_robot) con su objetivo (objetivos) y decidimos qué comando enviarle para corregir su posición y orientación. 
                     if robot_id in pose_por_robot:
-                        pose_raw = Pose2D(
-                            x=pose_por_robot[robot_id]["x"],
-                            y=pose_por_robot[robot_id]["y"],
-                            theta_deg=pose_por_robot[robot_id]["theta"],
-                        )
-                    output = controlador.update(raw_pose=pose_raw, now=ahora)
-
-                    self._escribir_log_desde_hilo(
-                        (
-                            f"[ALIGN:{robot_id}] estado={output.state.value} "
-                            f"pose=({output.pose.x:.1f},{output.pose.y:.1f},{output.pose.theta_deg:.1f}) "
-                            if output.pose
-                            else f"[ALIGN:{robot_id}] estado={output.state.value} pose=(sin detección) "
-                        )
-                    )
-                    self._escribir_log_desde_hilo(
-                        (
-                            f"[ALIGN:{robot_id}] objetivo=({objetivo['x']},{objetivo['y']},{objetivo['theta']:.1f}) "
-                            f"err_x={output.err_x:.1f} err_y={output.err_y:.1f} "
-                            f"err_th={output.err_theta:.1f} err_heading={output.err_heading:.1f} "
-                            f"dist={output.dist:.1f} act={output.action} dur={output.pulse_s:.2f}s "
-                            f"motivo={output.reason}"
-                        )
-                    )
-
-                    if output.state != AlignState.DONE:
-                        todos_ok = False
-
-                    if output.state == AlignState.FAILED:
-                        self.enviar_comando_simple(robot_id, "PARA")
-                        continue
-
-                    if output.action == "PARA":
-                        if actuador["accion_actual"]:
-                            self.enviar_comando_simple(robot_id, "PARA")
-                            actuador["accion_actual"] = ""
-                        continue
-
-                    if actuador["accion_actual"]:
-                        continue
-
-                    self.enviar_comando_simple(robot_id, output.action)
-                    actuador["accion_actual"] = output.action
-                    actuador["fin_accion_ts"] = ahora + output.pulse_s
-
-                if todos_ok:
-                    self._escribir_log_desde_hilo("Alineación completada para todos los robots.")
-                    break
-
-                cv2.imshow("Alineación inicial ARUCO", frame)
+                        #1. Extraemos los datos que ve la cámara.
+                        x_act = pose_por_robot[robot_id]["x"]
+                        y_act = pose_por_robot[robot_id]["y"]
+                        th_act = pose_por_robot[robot_id]["theta"]
+                        #2. Extraemos los datos del objetivo.
+                        x_obj = objetivo["x"]
+                        y_obj = objetivo["y"]
+                        th_obj = objetivo["theta"]
+                        #3. Empaquetamos el mensaje para el ESP 
+                        comando_pid = f"PID_DATA {x_act:.1f}:{y_act:.1f}:{th_act:.1f}:{x_obj:.1f}:{y_obj:.1f}:{th_obj:.1f}"
+                        #4. Enviamos por tcp
+                        self.enviar_comando_simple(robot_id, comando_pid)
+                cv2.imshow("Alineación inicial", frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
-
             for robot_id in objetivos.keys():
                 self.enviar_comando_simple(robot_id, "PARA")
             cap.release()
-            cv2.destroyAllWindows()
-
+            cv2.destroyWindow("Alineación inicial")
         except Exception as error:
-            self._escribir_log_desde_hilo(f"Alineación: error -> {error}")
+            self._escribir_log_desde_hilo(f"Alineación: error inesperado: {error}")
             self._escribir_log_desde_hilo(traceback.format_exc())
-
+                
     def escribir_log(self, texto):
         self.text_log.config(state="normal")
         self.text_log.insert(tk.END, texto + "\n")
@@ -1182,7 +1048,7 @@ class ServerGUI:
             return
 
         fuente = self.entry_fuente_aruco.get().strip() or "0"
-        cap = cv2.VideoCapture(interpretar_fuente(fuente))
+        cap = cv2.VideoCapture((fuente))
         configurar_captura(cap, ARUCO_FRAME_WIDTH, ARUCO_FRAME_HEIGHT)
         if not cap.isOpened():
             self._escribir_log_desde_hilo(
@@ -1193,7 +1059,7 @@ class ServerGUI:
             return
 
         detector = cv2.aruco.ArucoDetector(
-            cv2.aruco.getPredefinedDictionary(DICCIONARIOS_ARUCO["DICT_4X4_50"]),
+            cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),
             cv2.aruco.DetectorParameters(),
         )
 
