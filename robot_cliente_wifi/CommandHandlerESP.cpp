@@ -333,14 +333,40 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     float dx = x_obj - x_act;
     float dy = y_obj - y_act;
     float error_dist = sqrt(dx*dx + dy*dy);
-    if (error_dist < 10.0){
-        robot->parar();
-        modoPidActivo = false;
-        Serial.println("Objetivo alcanzado, deteniendo robot.");
-        if (client && client->connected()) {
-            client->println(String(robotId) + " OBJETIVO_ALCANZADO");
+
+    static bool enFase2 = false;
+    if (error_dist < 20.0){
+        enFase2 = true;
+    }else if (error_dist > 30.0){
+        enFase2 = false;
+    }
+    if (enFase2){
+         //FASE 2, ROTACIÓN FINAL PARA AJUSTAR ORIENTACIÓN
+        float angulo_final_rad = th_obj * (PI /180.0);
+        float angulo_actual_rad = th_act * (PI /180.0);
+        float error_th_final = angulo_final_rad - angulo_actual_rad;
+        error_th_final = atan2(sin(error_th_final), cos(error_th_final)); // Buscamos el ángulo más corto
+        if (abs(error_th_final) < 0.15){
+            robot->parar();
+            modoPidActivo = false;
+            enFase2 = false;
+            Serial.println("Objetivo alcanzado, deteniendo robot.");
+            if (client && client->connected()) {
+                client->println(String(robotId) + " OBJETIVO_ALCANZADO");
         }
         return;
+        }else{ //si hemos llegado pero no estamos alineados giramos sobre nosotros mismos.
+            float vel_giro_final = 25.0 * error_th_final; // Ganancia de giro para la fase final
+            if (vel_giro_final > 20) vel_giro_final =20; // Limitamos la velocidad de giro para no perder precisión;
+            if (vel_giro_final < -20) vel_giro_final = -20; // Limitamos la velocidad de giro para no perder precisión;
+
+            int pwm_min_giro = 15;
+            if (vel_giro_final > 0 && vel_giro_final < pwm_min_giro) vel_giro_final = pwm_min_giro;
+            if (vel_giro_final < 0 && vel_giro_final > -pwm_min_giro) vel_giro_final = -pwm_min_giro;
+
+            robot->moverVelocidades((int)-vel_giro_final, (int)vel_giro_final);
+            return;
+        }  
     }
 
     float angulo_objetivo_rad = atan2(-dy,dx);
