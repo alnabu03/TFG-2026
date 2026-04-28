@@ -333,10 +333,13 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     float dx = x_obj - x_act;
     float dy = y_obj - y_act;
     float error_dist = sqrt(dx*dx + dy*dy);
-    if (error_dist < 20.0){
+    if (error_dist < 10.0){
         robot->parar();
         modoPidActivo = false;
         Serial.println("Objetivo alcanzado, deteniendo robot.");
+        if (client && client->connected()) {
+            client->println(String(robotId) + " OBJETIVO_ALCANZADO");
+        }
         return;
     }
 
@@ -346,7 +349,7 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     error_ang = atan2(sin(error_ang), cos(error_ang)); // Normalizar a [-pi, pi]
     //Ajustes del PID (podemos jugar con estos valores)
     float kp_dist = 0.5; //Potencia de avance (el maqueen tiene de 0 a 255)
-    float kp_ang = 40; //Potencia de giro
+    float kp_ang = 60; //Potencia de giro el mejor por ahora ha sido de 40
 
     float velocidad_avance = kp_dist * error_dist;
     if (velocidad_avance > 120) velocidad_avance = 120; // Limitamos la velocidad de avance para que no sea demasiado rápida y pierda precisión

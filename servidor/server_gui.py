@@ -598,6 +598,14 @@ class ServerGUI:
     def update_loop(self):
         robots_perdidos = self.discovery.step()
         self.tcp.aceptar()
+        mensajes = self.tcp.leer_mensajes()
+        
+        for robot_id, texto in mensajes:
+            if "ALCANZADO" in texto:
+                self.escribir_log(f"✅ ¡El robot {robot_id} ha llegado a su destino!")
+            else:
+                # Opcional: imprimir otros mensajes que no sean ALCANZADO
+                print(f"Mensaje de {robot_id}: {texto}")
 
         for robot_id in robots_perdidos:
             self.tcp.eliminar_cliente(robot_id)
