@@ -79,7 +79,7 @@ bool CommandHandlerESP::esComandoParaMi(String mensaje) {
     if (mensaje == id + " IZQUIERDA") return true;
     if (mensaje == id + " DERECHA") return true;
     if (mensaje == id + " PARA") return true;
-    if(mensaje == id + " PID_DATA") return true;
+    if (mensaje.startsWith(id + " PID_DATA")) return true;
 
     return false;
 }
@@ -306,6 +306,9 @@ void CommandHandlerESP::ejecutarComando(String comando) {
             x_obj = xo; y_obj = yo; th_obj = tho;
             
             modoPidActivo = true;
+
+            Serial.println("Debug PID ACTIVADO, DATOS RECIBIDOS CORRECTAMENTE");
+
             if (ultimoTiempoPid == 0) ultimoTiempoPid = millis();
             ultimoMensajePidMs = millis(); // Nuestro Watchdog protector
         } else {
@@ -316,7 +319,7 @@ void CommandHandlerESP::ejecutarComando(String comando) {
 }
 
 void CommandHandlerESP::calcularYEjecutarPID(){
-    if (millis() - ultimoMensajePidsMs > 1000){
+    if (millis() - ultimoMensajePidMs > 1000){
         robot->parar();
         modoPidActivo = false;
         Serial.println("No se han recibido datos PID en el último segundo, deteniendo robot por seguridad.");
@@ -330,7 +333,7 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     float dx = x_obj - x_act;
     float dy = y_obj - y_act;
     float error_dist = sqrt(dx*dx + dy*dy);
-    if (error_dist < 20.0)){
+    if (error_dist < 20.0){
         robot->parar();
         modoPidActivo = false;
         Serial.println("Objetivo alcanzado, deteniendo robot.");
@@ -343,15 +346,16 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     error_ang = atan2(sin(error_ang), cos(error_ang)); // Normalizar a [-pi, pi]
     //Ajustes del PID (podemos jugar con estos valores)
     float kp_dist = 0.5; //Potencia de avance (el maqueen tiene de 0 a 255)
-    float kp_ang = 60; //Potencia de giro
+    float kp_ang = 40; //Potencia de giro
 
-    float velocidad_avancce = kp_dist * error_dist;
+    float velocidad_avance = kp_dist * error_dist;
+    if (velocidad_avance > 120) velocidad_avance = 120; // Limitamos la velocidad de avance para que no sea demasiado rápida y pierda precisión
     float velocidad_giro = kp_ang * error_ang;
-    if (abs(error_ang) > PI / 4) {
-        velocidad_avancce = 0; // Si el error angular es mayor de 45, solo giramos
+    if (abs(error_ang) > PI / 2) {
+        velocidad_avance = 0; // Si el error angular es mayor de 45, solo giramos
     }
-    float vel_izquierda = velocidad_avancce - velocidad_giro;
-    float vel_derecha = velocidad_avancce + velocidad_giro;
+    float vel_izquierda = velocidad_avance - velocidad_giro;
+    float vel_derecha = velocidad_avance + velocidad_giro;
     //limitamos velocidades al rango del maqueen (0 a 255)
     if (vel_izquierda > 255) vel_izquierda = 255;
     if (vel_izquierda < -255) vel_izquierda = -255;

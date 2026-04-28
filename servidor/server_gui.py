@@ -80,8 +80,6 @@ class ServerGUI:
         contenedor.bind("<Configure>", self._actualizar_scroll_region)
         self.canvas_scroll.bind("<Configure>", self._ajustar_ancho_contenido)
         self.canvas_scroll.bind_all("<MouseWheel>", self._scroll_mousewheel_windows)
-        self.canvas_scroll.bind_all("<Button-4>", self._scroll_mousewheel_linux_up)
-        self.canvas_scroll.bind_all("<Button-5>", self._scroll_mousewheel_linux_down)
 
         # Lista de robots
         tk.Label(contenedor, text="Robots conectados (selección múltiple para sincronizar):").pack(anchor="w")
@@ -512,7 +510,7 @@ class ServerGUI:
                         y_obj = objetivo["y"]
                         th_obj = objetivo["theta"]
                         #3. Empaquetamos el mensaje para el ESP 
-                        comando_pid = f"PID_DATA {x_act:.1f}:{y_act:.1f}:{th_act:.1f}:{x_obj:.1f}:{y_obj:.1f}:{th_obj:.1f}"
+                        comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
                         #4. Enviamos por tcp
                         self.enviar_comando_simple(robot_id, comando_pid)
                 cv2.imshow("Alineación inicial", frame_dibujado)
@@ -831,13 +829,7 @@ class ServerGUI:
         )
         hilo.start()
 
-    def _worker_giro_grados_aruco(
-        self,
-        robots: list[str],
-        direccion: str,
-        grados_objetivo: float,
-        on_done,
-    ):
+    def _worker_giro_grados_aruco(self,robots: list[str],direccion: str,grados_objetivo: float,on_done,):
         try:
             mapa = self._parsear_mapa_aruco_manual(self.entry_mapa_aruco.get().strip())
         except ValueError as error:
@@ -880,10 +872,7 @@ class ServerGUI:
                 self.root.after(0, on_done)
             return
 
-        detector = cv2.aruco.ArucoDetector(
-            cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),
-            cv2.aruco.DetectorParameters(),
-        )
+        detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),cv2.aruco.DetectorParameters(),)
 
         inicio_theta_por_robot = {}
         fecha_limite_inicio = time.time() + 2.5
@@ -903,10 +892,7 @@ class ServerGUI:
         no_detectados = [robot_id for robot_id in robots if robot_id not in inicio_theta_por_robot]
         if no_detectados:
             cap.release()
-            self._escribir_log_desde_hilo(
-                "Giro por grados cancelado: no se detectó ArUco inicial de "
-                + ", ".join(no_detectados)
-            )
+            self._escribir_log_desde_hilo("Giro por grados cancelado: no se detectó ArUco inicial de "+ ", ".join(no_detectados))
             if on_done:
                 self.root.after(0, on_done)
             return
@@ -939,11 +925,7 @@ class ServerGUI:
                     continue
 
                 pose_actual = poses_detectadas[marker_id]
-                progreso = self._delta_giro_en_direccion(
-                    inicio_theta_por_robot[robot_id],
-                    pose_actual["theta"],
-                    direccion,
-                )
+                progreso = self._delta_giro_en_direccion(inicio_theta_por_robot[robot_id],pose_actual["theta"],direccion,)
                 if progreso >= objetivo_parada:
                     self.enviar_comando_simple(robot_id, "PARA")
                     finalizados.append((robot_id, progreso))
@@ -951,15 +933,13 @@ class ServerGUI:
 
             for robot_id, progreso in finalizados:
                 self._escribir_log_desde_hilo(
-                    f"Giro ARUCO completado en {robot_id}: {progreso:.1f}° medidos."
-                )
+                    f"Giro ARUCO completado en {robot_id}: {progreso:.1f}° medidos.")
 
             if mostrar_ventana_extra:
                 texto_estado = (
                     f"Objetivo: {direccion} {grados_objetivo:.1f}° | "
                     f"Pendientes: {len(pendientes)} | "
-                    f"Tiempo: {time.time() - inicio_ts:.1f}s"
-                )
+                    f"Tiempo: {time.time() - inicio_ts:.1f}s")
                 cv2.putText(frame,texto_estado,(20, 35),cv2.FONT_HERSHEY_SIMPLEX,0.75,(0, 255, 0),2,cv2.LINE_AA,)
                 cv2.imshow(ventana, frame_dibujado)
                 ventana_mostrada = True

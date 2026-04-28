@@ -61,9 +61,9 @@ void RobotController::parar() {
     setMotor(2, 0, 0);
 }
 
-void moverVelocidades(int VelIzquierda, int VelDerecha){
+void RobotController::moverVelocidades(int VelIzquierda, int VelDerecha){
     //Motor izquierdo (0)
-    if(velIzquierda >= 0){
+    if(VelIzquierda >= 0){
         setMotor(0, 0, VelIzquierda); // adelante
     } else {
         setMotor(0, 1, -VelIzquierda); // atrás

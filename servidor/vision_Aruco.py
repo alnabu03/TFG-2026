@@ -21,8 +21,8 @@ def detectar_poses_robot(frame,detector):
             center_x = int((tl[0]+tr[0]+br[0]+bl[0])/4)
             center_y = int((tl[1]+tr[1]+br[1]+bl[1])/4)
             #---Ahora calculamos el ángulo theta---#
-            front_x = ((tl[0]+tr[0])/2)
-            front_y = ((tl[1]+tr[1])/2)
+            front_x = ((tl[0]+bl[0])/2)
+            front_y = ((tl[1]+bl[1])/2)
             #Diferencia entre el frente y el centro
             dx = front_x - center_x
             dy = front_y - center_y
