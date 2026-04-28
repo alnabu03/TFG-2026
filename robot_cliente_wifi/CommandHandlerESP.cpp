@@ -365,6 +365,15 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     if (vel_derecha > 255) vel_derecha = 255;
     if (vel_derecha < -255) vel_derecha = -255; 
 
+    //Buscamos el minimo valor con el que el robot es capaz de moverse.
+    int pwm_minimo = 15; 
+    
+    if (vel_izquierda > 0 && vel_izquierda < pwm_minimo) vel_izquierda = pwm_minimo;
+    if (vel_izquierda < 0 && vel_izquierda > -pwm_minimo) vel_izquierda = -pwm_minimo;
+    
+    if (vel_derecha > 0 && vel_derecha < pwm_minimo) vel_derecha = pwm_minimo;
+    if (vel_derecha < 0 && vel_derecha > -pwm_minimo) vel_derecha = -pwm_minimo;
+
     robot->moverVelocidades((int)vel_izquierda, (int)vel_derecha);
 
 }
