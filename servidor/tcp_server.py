@@ -117,6 +117,28 @@ class TcpServer:
                 print(f"Error al enviar a {client_id}: {e}")
                 self.eliminar_cliente(client_id)
 
+    def leer_mensajes(self):
+        mensajes_recibidos = []
+        for client_id, client_socket in list(self.clients.items()):
+            if isinstance(client_id, int):
+                continue
+            try:
+                data = client_socket.recv(2048)
+                if data: 
+                    textos = data.decode("utf-8").strip().split("\n")
+                    for texto in textos:
+                        if texto:
+                            mensajes_recibidos.append((client_id, texto))
+                else:
+                    print(f"Cliente {client_id} desconectado")
+                    self.eliminar_cliente(client_id)
+            except BlockingIOError:
+                pass
+            except OSError as e:
+                print(f"Error al leer de {client_id}: {e}")
+                self.eliminar_cliente(client_id)
+        return mensajes_recibidos
+
     def enviar_a_robot(self, robot_id: str, mensaje: str):
         if robot_id not in self.clients:
             print(f"El robot {robot_id} no está conectado")

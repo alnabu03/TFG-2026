@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/anava/Documents/GitHub/TFG-2026/robot_cliente_wifi",
-      "program": "c:/Users/anava/Documents/GitHub/TFG-2026/robot_cliente_wifi/build/Debug/outDebug",
+      "cwd": "c:/Users/anava/Documents/GitHub/TFG-2026/Arduino",
+      "program": "c:/Users/anava/Documents/GitHub/TFG-2026/Arduino/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
