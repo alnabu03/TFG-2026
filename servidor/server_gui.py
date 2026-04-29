@@ -14,8 +14,6 @@ ARUCO_FRAME_WIDTH = 1280
 ARUCO_FRAME_HEIGHT = 720
 ARUCO_SAFE_MARGIN_PX = 70
 ALIGN_CTRL_VERSION = "v4.0-go-to-pose-fsm"
-GIRO_GRADOS_COMPENSACION_DEFAULT_DEG = 5.0
-GIRO_GRADOS_TIMEOUT_S = 8.0
 
 BAILES_PREDEFINIDOS = {
     "Cuadrado corto": [
@@ -167,70 +165,12 @@ class ServerGUI:
         tk.Button(frame_botones, text="RETROCEDE", width=15,command=lambda: self.enviar_comando("RETROCEDE")).grid(row=2, column=1)
         # PARA
         tk.Button(frame_botones, text="PARA", width=15,command=lambda: self.enviar_comando("PARA")).grid(row=3, column=1)
-
-        frame_giro_grados = tk.LabelFrame(contenedor, text="Giro por grados (ARUCO)")
-        frame_giro_grados.pack(fill="x", pady=(0, 10))
-
-        tk.Button(frame_giro_grados,text="DERECHA",width=15,command=self.enviar_giro_derecha_desde_ui,).grid(row=0, column=0, padx=(6, 4), pady=6)
-
-        self.entry_giro_derecha_grados = tk.Spinbox(frame_giro_grados,from_=1,to=360,increment=1,width=8,)
-        self.entry_giro_derecha_grados.grid(row=0, column=1, padx=(0, 10), pady=6, sticky="w")
-        self.entry_giro_derecha_grados.delete(0, tk.END)
-        self.entry_giro_derecha_grados.insert(0, "30")
-
-        tk.Label(frame_giro_grados, text="grados").grid(row=0, column=2, sticky="w")
-
-        tk.Button(frame_giro_grados,text="IZQUIERDA",width=15,command=self.enviar_giro_izquierda_desde_ui,).grid(row=1, column=0, padx=(6, 4), pady=(0, 6))
-        
-        self.entry_giro_izquierda_grados = tk.Spinbox(frame_giro_grados,from_=1,to=360,increment=1,width=8,)
-        self.entry_giro_izquierda_grados.grid(row=1, column=1, padx=(0, 10), pady=(0, 6), sticky="w")
-        self.entry_giro_izquierda_grados.delete(0, tk.END)
-        self.entry_giro_izquierda_grados.insert(0, "30")
-        
-        tk.Label(frame_giro_grados, text="grados").grid(row=1, column=2, sticky="w")
-
-        tk.Label(frame_giro_grados,text="Opcional: abrir una ventana extra de cámara para validar el ángulo en vivo.",).grid(row=2, column=0, columnspan=3, sticky="w", padx=6, pady=(0, 3))
-
-        self.var_mostrar_ventana_giro = tk.BooleanVar(value=False)
-        tk.Checkbutton(frame_giro_grados,text="Mostrar ventana extra durante el giro",variable=self.var_mostrar_ventana_giro,).grid(row=3, column=0, columnspan=3, sticky="w", padx=6, pady=(0, 6))
-
         # ===== BAILES =====
-        tk.Label(contenedor,text=("Baile personalizado (COMANDO DURACION_MS ""o DERECHA_GRADOS/IZQUIERDA_GRADOS GRADOS):"),).pack(anchor="w")
+        tk.Label(contenedor,text=("Baile personalizado (COMANDO DURACION_MS ):"),).pack(anchor="w")
         self.text_baile = tk.Text(contenedor, height=6)
         self.text_baile.pack(fill="x", pady=(0, 6))
         self.text_baile.insert( tk.END,"AVANZA 1000\n""IZQUIERDA 600\n""AVANZA 1000\n""PARA 300\n")
         
-        frame_baile_giro_helper = tk.Frame(contenedor)
-        frame_baile_giro_helper.pack(fill="x", pady=(0, 6))
-        tk.Label(frame_baile_giro_helper,text="Añadir paso de giro por grados:",).grid(row=0, column=0, columnspan=5, sticky="w")
-
-        tk.Button(frame_baile_giro_helper,text="DERECHA", width=12, command=self.agregar_paso_giro_derecha, ).grid(row=1, column=0, padx=(0, 4), pady=(2, 0))
-        
-        self.entry_paso_giro_derecha_grados = tk.Spinbox(frame_baile_giro_helper,from_=1,to=360,increment=1,width=8, )
-        self.entry_paso_giro_derecha_grados.grid(row=1, column=1, padx=(0, 8), pady=(2, 0), sticky="w")
-        self.entry_paso_giro_derecha_grados.delete(0, tk.END)
-        self.entry_paso_giro_derecha_grados.insert(0, "30")
-        
-        tk.Label(frame_baile_giro_helper, text="grados").grid(row=1, column=2, sticky="w")
-
-        tk.Button(
-            frame_baile_giro_helper,
-            text="IZQUIERDA",
-            width=12,
-            command=self.agregar_paso_giro_izquierda,
-        ).grid(row=1, column=3, padx=(10, 4), pady=(2, 0))
-        self.entry_paso_giro_izquierda_grados = tk.Spinbox(
-            frame_baile_giro_helper,
-            from_=1,
-            to=360,
-            increment=1,
-            width=8,
-        )
-        self.entry_paso_giro_izquierda_grados.grid(row=1, column=4, padx=(0, 8), pady=(2, 0), sticky="w")
-        self.entry_paso_giro_izquierda_grados.delete(0, tk.END)
-        self.entry_paso_giro_izquierda_grados.insert(0, "30")
-        tk.Label(frame_baile_giro_helper, text="grados").grid(row=1, column=5, sticky="w")
-
         frame_constructor_baile = tk.LabelFrame(contenedor, text="Constructor rápido de baile")
         frame_constructor_baile.pack(fill="x", pady=(0, 6))
         tk.Label(frame_constructor_baile, text="Comando:").grid(row=0, column=0, sticky="w", padx=(6, 4), pady=6)
@@ -266,7 +206,7 @@ class ServerGUI:
         self.entry_delay_inicio.pack(fill="x", pady=(0, 10))
         self.entry_delay_inicio.insert(0, "1000")
 
-        self.reproductor_baile = ReproductorBaile(root=self.root,enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log,ejecutar_giro_grados=self.ejecutar_giro_grados_aruco,)
+        self.reproductor_baile = ReproductorBaile(root=self.root,enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log,)
         self.root.protocol("WM_DELETE_WINDOW", self.on_cerrar)
 
         # Bucle principal
@@ -559,14 +499,6 @@ class ServerGUI:
         if comando == "":
             messagebox.showwarning("Aviso", "Escribe un comando")
             return
-
-        giro_grados = self._parsear_comando_giro_grados(comando)
-        if giro_grados is not None:
-            direccion, grados = giro_grados
-            self.ejecutar_giro_grados_aruco(robots, direccion, grados)
-            self.entry_comando.delete(0, tk.END)
-            return
-
         enviados = []
         fallidos = []
         for robot_id in robots:
@@ -626,33 +558,6 @@ class ServerGUI:
             self.escribir_log(f"Enviado sincronizado '{comando}' a: {', '.join(enviados)}")
         if fallidos:
             self.escribir_log(f"No se pudo enviar a: {', '.join(fallidos)}")
-
-    def enviar_giro_derecha_desde_ui(self):
-        robots = self.get_robots_seleccionados()
-        if not robots:
-            messagebox.showwarning("Aviso", "Selecciona al menos un robot")
-            return
-        try:
-            grados = self._obtener_grados_desde_spinbox(self.entry_giro_derecha_grados)
-        except ValueError as error:
-            messagebox.showerror("Comando inválido", str(error))
-            return
-        self.escribir_log(f"Iniciando giro por grados: DERECHA {grados:g}° para {', '.join(robots)}")
-        self.ejecutar_giro_grados_aruco(robots, "DERECHA", grados)
-
-    def enviar_giro_izquierda_desde_ui(self):
-        robots = self.get_robots_seleccionados()
-        if not robots:
-            messagebox.showwarning("Aviso", "Selecciona al menos un robot")
-            return
-        try:
-            grados = self._obtener_grados_desde_spinbox(self.entry_giro_izquierda_grados)
-        except ValueError as error:
-            messagebox.showerror("Comando inválido", str(error))
-            return
-
-        self.escribir_log(f"Iniciando giro por grados: IZQUIERDA {grados:g}° para {', '.join(robots)}")
-        self.ejecutar_giro_grados_aruco(robots, "IZQUIERDA", grados)
 
     def ejecutar_baile_personalizado(self):
         robots = self.get_robots_seleccionados()
@@ -771,255 +676,6 @@ class ServerGUI:
         self.text_baile.delete("1.0", tk.END)
         self.escribir_log("Baile editado limpiado.")
 
-    def _obtener_grados_desde_spinbox(self, spinbox: tk.Spinbox):
-        valor = spinbox.get().strip().replace(",", ".")
-        try:
-            grados = float(valor)
-        except ValueError:
-            raise ValueError("Los grados deben ser numéricos.")
-        if grados <= 0:
-            raise ValueError("Los grados deben ser mayores que 0.")
-        return grados
-
-    def agregar_paso_giro_derecha(self):
-        try:
-            grados = self._obtener_grados_desde_spinbox(self.entry_paso_giro_derecha_grados)
-        except ValueError as error:
-            messagebox.showerror("Paso inválido", str(error))
-            return
-        self._agregar_linea_baile(f"DERECHA_GRADOS {grados:g}")
-        self.escribir_log(f"Añadido al baile: DERECHA_GRADOS {grados:g}")
-
-    def agregar_paso_giro_izquierda(self):
-        try:
-            grados = self._obtener_grados_desde_spinbox(self.entry_paso_giro_izquierda_grados)
-        except ValueError as error:
-            messagebox.showerror("Paso inválido", str(error))
-            return
-        self._agregar_linea_baile(f"IZQUIERDA_GRADOS {grados:g}")
-        self.escribir_log(f"Añadido al baile: IZQUIERDA_GRADOS {grados:g}")
-
-    def _parsear_comando_giro_grados(self, comando: str):
-        trozos = [token for token in comando.split() if token]
-        if len(trozos) != 2:
-            return None
-        if trozos[0] not in ("DERECHA_GRADOS", "IZQUIERDA_GRADOS"):
-            return None
-        try:
-            grados = float(trozos[1].replace(",", "."))
-        except ValueError:
-            messagebox.showerror("Comando inválido","Los grados deben ser numéricos. Ejemplo: DERECHA_GRADOS 30",)
-            return None
-        if grados <= 0:
-            messagebox.showerror("Comando inválido","Los grados deben ser mayores que 0.",)
-            return None
-        direccion = "DERECHA" if trozos[0] == "DERECHA_GRADOS" else "IZQUIERDA"
-        return direccion, grados
-
-    @staticmethod
-    def _delta_giro_en_direccion(inicio_deg: float, actual_deg: float, direccion: str) -> float:
-        delta = ((actual_deg - inicio_deg + 180.0) % 360.0) - 180.0
-        if direccion == "DERECHA":
-            return max(0.0, delta)
-        return max(0.0, -delta)
-
-    def ejecutar_giro_grados_aruco(
-        self,
-        robots: list[str],
-        direccion: str,
-        grados_objetivo: float,
-        on_done=None,
-    ):
-        hilo = threading.Thread(
-            target=self._worker_giro_grados_aruco,
-            args=(robots, direccion, grados_objetivo, on_done),
-            daemon=True,
-        )
-        hilo.start()
-
-    def _worker_giro_grados_aruco(self,robots: list[str],direccion: str,grados_objetivo: float,on_done,):
-        try:
-            mapa = self._parsear_mapa_aruco_manual(self.entry_mapa_aruco.get().strip())
-        except ValueError as error:
-            self._escribir_log_desde_hilo(f"Giro por grados cancelado: {error}")
-            if on_done:
-                self.root.after(0, on_done)
-            return
-
-        marker_por_robot = {}
-        for token in mapa:
-            marker_txt, robot_id = token.split(":", maxsplit=1)
-            marker_por_robot[robot_id] = int(marker_txt)
-
-        faltantes = [robot_id for robot_id in robots if robot_id not in marker_por_robot]
-        if faltantes:
-            self._escribir_log_desde_hilo(
-                f"Giro por grados cancelado: robots sin mapeo ARUCO: {', '.join(faltantes)}"
-            )
-            if on_done:
-                self.root.after(0, on_done)
-            return
-
-        if self._camara_aruco_activa():
-            self._worker_giro_grados_aruco_usando_camara_activa(robots=robots,marker_por_robot=marker_por_robot,direccion=direccion,grados_objetivo=grados_objetivo,on_done=on_done,)
-            return
-
-        # 1. Leemos lo que has escrito en la interfaz justo antes de encender la cámara
-        fuente_texto = self.entry_fuente_aruco.get().strip() or "0"
-
-        # 2. Truco Python: si es un número lo convierte, si es una URL lo deja como texto
-        fuente = int(fuente_texto) if fuente_texto.isdigit() else fuente_texto
-
-        # 3. Abrimos la cámara con la fuente correcta
-        cap = cv2.VideoCapture(fuente)
-        if not cap.isOpened():
-            self._escribir_log_desde_hilo(
-                f"Giro por grados cancelado: no se pudo abrir la cámara '{fuente}'."
-            )
-            if on_done:
-                self.root.after(0, on_done)
-            return
-
-        detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),cv2.aruco.DetectorParameters(),)
-
-        inicio_theta_por_robot = {}
-        fecha_limite_inicio = time.time() + 2.5
-
-        #---Buscar ángulo inicial---
-        while time.time() < fecha_limite_inicio and len(inicio_theta_por_robot) < len(robots):
-            ok, frame = cap.read()
-            if not ok:
-                continue
-
-            poses_detectadas, _ = detectar_poses_robot(frame, detector)
-            for robot_id in robots:
-                marker_id = marker_por_robot[robot_id]
-                if marker_id in poses_detectadas and robot_id not in inicio_theta_por_robot:
-                    inicio_theta_por_robot[robot_id] = poses_detectadas[marker_id]["theta"]
-
-        no_detectados = [robot_id for robot_id in robots if robot_id not in inicio_theta_por_robot]
-        if no_detectados:
-            cap.release()
-            self._escribir_log_desde_hilo("Giro por grados cancelado: no se detectó ArUco inicial de "+ ", ".join(no_detectados))
-            if on_done:
-                self.root.after(0, on_done)
-            return
-
-        objetivo_parada = max(1.0, grados_objetivo - GIRO_GRADOS_COMPENSACION_DEFAULT_DEG)
-        pendientes = set(robots)
-        for robot_id in robots:
-            self.enviar_comando_simple(robot_id, direccion)
-
-        self._escribir_log_desde_hilo(
-            f"Giro ARUCO: {direccion} {grados_objetivo:.1f}° (parada anticipada en {objetivo_parada:.1f}°)")
-
-        mostrar_ventana_extra = self.var_mostrar_ventana_giro.get()
-        ventana = f"Giro ARUCO en vivo ({direccion})"
-        ventana_mostrada = False
-        inicio_ts = time.time()
-        
-        while pendientes and (time.time() - inicio_ts) <= GIRO_GRADOS_TIMEOUT_S:
-            ok, frame = cap.read()
-            if not ok:
-                time.sleep(0.01)
-                continue
-
-            poses_detectadas, frame_dibujado = detectar_poses_robot(frame, detector)
-
-            finalizados = []
-            for robot_id in list(pendientes):
-                marker_id = marker_por_robot[robot_id]
-                if marker_id not in poses_detectadas:
-                    continue
-
-                pose_actual = poses_detectadas[marker_id]
-                progreso = self._delta_giro_en_direccion(inicio_theta_por_robot[robot_id],pose_actual["theta"],direccion,)
-                if progreso >= objetivo_parada:
-                    self.enviar_comando_simple(robot_id, "PARA")
-                    finalizados.append((robot_id, progreso))
-                    pendientes.remove(robot_id)
-
-            for robot_id, progreso in finalizados:
-                self._escribir_log_desde_hilo(
-                    f"Giro ARUCO completado en {robot_id}: {progreso:.1f}° medidos.")
-
-            if mostrar_ventana_extra:
-                texto_estado = (
-                    f"Objetivo: {direccion} {grados_objetivo:.1f}° | "
-                    f"Pendientes: {len(pendientes)} | "
-                    f"Tiempo: {time.time() - inicio_ts:.1f}s")
-                cv2.putText(frame,texto_estado,(20, 35),cv2.FONT_HERSHEY_SIMPLEX,0.75,(0, 255, 0),2,cv2.LINE_AA,)
-                cv2.imshow(ventana, frame_dibujado)
-                ventana_mostrada = True
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    self._escribir_log_desde_hilo("Giro ARUCO detenido manualmente desde la ventana de cámara (tecla q).")
-                    break
-            else:
-                time.sleep(0.01)
-
-        for robot_id in pendientes:
-            self.enviar_comando_simple(robot_id, "PARA")
-            self._escribir_log_desde_hilo(f"Giro ARUCO con timeout en {robot_id}; se envió PARA de seguridad.")
-
-        cap.release()
-        if ventana_mostrada:
-            cv2.destroyWindow(ventana)
-        if on_done:
-            self.root.after(0, on_done)
-
-    def _worker_giro_grados_aruco_usando_camara_activa(self,robots: list[str],marker_por_robot: dict[str, int],direccion: str,grados_objetivo: float,on_done,):
-        inicio_theta_por_robot = {}
-        fecha_limite_inicio = time.time() + 2.5
-        while time.time() < fecha_limite_inicio and len(inicio_theta_por_robot) < len(robots):
-            with self.lock_detecciones_aruco:
-                snapshot = dict(self.detecciones_aruco_por_marker)
-            for robot_id in robots:
-                marker_id = marker_por_robot[robot_id]
-                if marker_id in snapshot and robot_id not in inicio_theta_por_robot:
-                    inicio_theta_por_robot[robot_id] = snapshot[marker_id]
-            time.sleep(0.02)
-
-        no_detectados = [robot_id for robot_id in robots if robot_id not in inicio_theta_por_robot]
-        if no_detectados:
-            self._escribir_log_desde_hilo("Giro por grados cancelado: no se detectó ArUco inicial de "+ ", ".join(no_detectados))
-            if on_done:
-                self.root.after(0, on_done)
-            return
-
-        objetivo_parada = max(1.0, grados_objetivo - GIRO_GRADOS_COMPENSACION_DEFAULT_DEG)
-        pendientes = set(robots)
-        for robot_id in robots:
-            self.enviar_comando_simple(robot_id, direccion)
-        self._escribir_log_desde_hilo("Giro ARUCO reutilizando cámara activa: "f"{direccion} {grados_objetivo:.1f}° (parada en {objetivo_parada:.1f}°)")
-
-        inicio_ts = time.time()
-        while pendientes and (time.time() - inicio_ts) <= GIRO_GRADOS_TIMEOUT_S:
-            with self.lock_detecciones_aruco:
-                snapshot = dict(self.detecciones_aruco_por_marker)
-
-            finalizados = []
-            for robot_id in list(pendientes):
-                marker_id = marker_por_robot[robot_id]
-                theta_actual = snapshot.get(marker_id)
-                if theta_actual is None:
-                    continue
-                progreso = self._delta_giro_en_direccion(inicio_theta_por_robot[robot_id],theta_actual,direccion,)
-                if progreso >= objetivo_parada:
-                    self.enviar_comando_simple(robot_id, "PARA")
-                    finalizados.append((robot_id, progreso))
-                    pendientes.remove(robot_id)
-
-            for robot_id, progreso in finalizados:
-                self._escribir_log_desde_hilo(
-                    f"Giro ARUCO completado en {robot_id}: {progreso:.1f}° medidos.")
-            time.sleep(0.02)
-
-        for robot_id in pendientes:
-            self.enviar_comando_simple(robot_id, "PARA")
-            self._escribir_log_desde_hilo(f"Giro ARUCO con timeout en {robot_id}; se envió PARA de seguridad." )
-        if on_done:
-            self.root.after(0, on_done)
-            
 if __name__ == "__main__":
     root = tk.Tk()
     app = ServerGUI(root)

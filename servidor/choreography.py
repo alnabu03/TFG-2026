@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from typing import Callable
 
 COMANDOS_VALIDOS = {"AVANZA", "RETROCEDE", "IZQUIERDA", "DERECHA", "PARA"}
-COMANDOS_GIRO_GRADOS = {"DERECHA_GRADOS", "IZQUIERDA_GRADOS"}
-
 
 @dataclass
 class PasoBaile:
@@ -31,21 +29,8 @@ def parsear_baile(texto: str) -> list[PasoBaile]:  #EL texto: str indica que se 
             )
 
         comando = trozos[0].upper() #Convertimos el comando a mayúsculas para que sea insensible a mayúsculas/minúsculas, por ejemplo "avanza" se convierte en "AVANZA".
-        if comando not in COMANDOS_VALIDOS and comando not in COMANDOS_GIRO_GRADOS:
+        if comando not in COMANDOS_VALIDOS:
             raise ValueError(f"Línea {indice}: comando '{comando}' no válido.")
-
-        if comando in COMANDOS_GIRO_GRADOS:
-            try:
-                grados = float(trozos[1].replace(",", "."))
-            except ValueError as error:
-                raise ValueError(f"Línea {indice}: grados no numéricos.") from error
-
-            if grados <= 0:
-                raise ValueError(f"Línea {indice}: los grados deben ser mayores que 0.")
-
-            pasos.append(PasoBaile(comando=comando, duracion_ms=0, valor=grados))
-            continue
-
         try:
             duracion_ms = int(trozos[1]) #Intentamos convertir la duración a un entero, si no es posible (por ejemplo, si el usuario escribe "mil" en lugar de "1000"), se lanzará un ValueError que capturamos para dar un mensaje de error más claro.
         except ValueError as error:
@@ -60,17 +45,10 @@ def parsear_baile(texto: str) -> list[PasoBaile]:  #EL texto: str indica que se 
 
 
 class ReproductorBaile:
-    def __init__(
-        self,
-        root,
-        enviar_comando: Callable[[str, str], bool],
-        escribir_log: Callable[[str], None],
-        ejecutar_giro_grados: Callable[[list[str], str, float, Callable[[], None]], None] | None = None,
-    ):
+    def __init__(self,root,enviar_comando: Callable[[str, str], bool],escribir_log: Callable[[str], None],):
         self.root = root
         self.enviar_comando = enviar_comando
         self.escribir_log = escribir_log
-        self.ejecutar_giro_grados = ejecutar_giro_grados
         self.scheduled_lead_ms = 350
 
     def ejecutar_sincronizado(self,robots: list[str],pasos: list[PasoBaile],delay_inicio_ms: int = 1000,):#Recibe la lista de robots, los pasos a ejecutar y el delay inicial.
@@ -95,35 +73,6 @@ class ReproductorBaile:
             return
 
         paso = pasos[indice]
-        if paso.comando in COMANDOS_GIRO_GRADOS:
-            if self.ejecutar_giro_grados is None:
-                self.escribir_log(
-                    f"No se puede ejecutar paso por grados ({paso.comando}) sin soporte ARUCO."
-                )
-                self.root.after(
-                    0,
-                    lambda: self._ejecutar_paso(robots=robots, pasos=pasos, indice=indice + 1),
-                )
-                return
-
-            direccion = "DERECHA" if paso.comando == "DERECHA_GRADOS" else "IZQUIERDA"
-            grados = float(paso.valor or 0.0)
-            self.escribir_log(
-                f"Paso {indice + 1}/{len(pasos)} -> giro {direccion} {grados:.1f}° con ARUCO para {', '.join(robots)}"
-            )
-            self.ejecutar_giro_grados(
-                robots,
-                direccion,
-                grados,
-                lambda: self.root.after(
-                    0,
-                    lambda: self._ejecutar_paso(
-                        robots=robots, pasos=pasos, indice=indice + 1
-                    ),
-                ),
-            )
-            return
-
         ok_robots = []
         ko_robots = []
         exec_at_ms = int(time.time() * 1000) + self.scheduled_lead_ms

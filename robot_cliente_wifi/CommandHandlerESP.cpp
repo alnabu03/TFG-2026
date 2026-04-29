@@ -176,6 +176,10 @@ void CommandHandlerESP::procesarComandoProgramado() {
         stopAtLocalMs = 0;
     }
 
+    if (useLocalStopTimer) {
+        return; 
+    }
+
     ScheduledCommand nextCmd;
     if (!verPrimerComandoProgramado(&nextCmd)) {
         return;
