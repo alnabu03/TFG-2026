@@ -349,10 +349,10 @@ void CommandHandlerESP::calcularYEjecutarPID(){
         if (abs(error_th_final) < 0.15){
             robot->parar();
             modoPidActivo = false;
-            enFase2 = false;
             Serial.println("Objetivo alcanzado, deteniendo robot.");
             if (client && client->connected()) {
                 client->println(String(robotId) + " OBJETIVO_ALCANZADO");
+                
         }
         return;
         }else{ //si hemos llegado pero no estamos alineados giramos sobre nosotros mismos.
