@@ -9,7 +9,6 @@ from discover import DiscoveryServer
 from tcp_server import TcpServer
 from vision_Aruco import detectar_poses_robot
 
-
 ARUCO_FRAME_WIDTH = 1280
 ARUCO_FRAME_HEIGHT = 720
 ARUCO_SAFE_MARGIN_PX = 70
@@ -65,11 +64,7 @@ class ServerGUI:
         self.canvas_scroll = tk.Canvas(contenedor_principal, highlightthickness=0)
         self.canvas_scroll.pack(side="left", fill="both", expand=True)
 
-        barra_scroll = tk.Scrollbar(
-            contenedor_principal,
-            orient="vertical",
-            command=self.canvas_scroll.yview,
-        )
+        barra_scroll = tk.Scrollbar(contenedor_principal,orient="vertical",command=self.canvas_scroll.yview,)
         barra_scroll.pack(side="right", fill="y")
         self.canvas_scroll.configure(yscrollcommand=barra_scroll.set)
 
@@ -82,12 +77,7 @@ class ServerGUI:
         # Lista de robots
         tk.Label(contenedor, text="Robots conectados (selección múltiple para sincronizar):").pack(anchor="w")
 
-        self.lista_robots = tk.Listbox(
-            contenedor,
-            height=8,
-            selectmode=tk.MULTIPLE,
-            exportselection=False,
-        )
+        self.lista_robots = tk.Listbox(contenedor,height=8,selectmode=tk.MULTIPLE,exportselection=False,)
         self.lista_robots.pack(fill="x", pady=(0, 10))
 
         frame_seleccion = tk.Frame(contenedor)
@@ -102,11 +92,7 @@ class ServerGUI:
         self.entry_comando.pack(fill="x", pady=(0, 10))
 
         # Botón enviar
-        self.boton_enviar = tk.Button(
-            contenedor,
-            text="Enviar comando",
-            command=self.enviar_comando_manual
-        )
+        self.boton_enviar = tk.Button(contenedor,text="Enviar comando",command=self.enviar_comando_manual)
         self.boton_enviar.pack(pady=(0, 10))
 
         # ===== VISION ARUCO =====
@@ -127,21 +113,13 @@ class ServerGUI:
         self.entry_mapa_aruco = tk.Entry(frame_vision)
         self.entry_mapa_aruco.grid(row=2, column=1, sticky="ew", padx=6, pady=4)
 
-        self.boton_autocompletar_mapa = tk.Button(
-            frame_vision,
-            text="Autocompletar mapa desde selección",
-            command=self.autocompletar_mapa_aruco_desde_seleccion,
-        )
+        self.boton_autocompletar_mapa = tk.Button(frame_vision,text="Autocompletar mapa desde selección",command=self.autocompletar_mapa_aruco_desde_seleccion,)
         self.boton_autocompletar_mapa.grid(row=3, column=0, columnspan=2, sticky="w", padx=6, pady=(0, 4))
 
         frame_vision_botones = tk.Frame(frame_vision)
         frame_vision_botones.grid(row=4, column=0, columnspan=2, sticky="w", padx=6, pady=4)
 
-        tk.Button(
-            frame_vision_botones,
-            text="Iniciar cámara ARUCO",
-            command=self.iniciar_camara_aruco,
-        ).pack(side="left")
+        tk.Button(frame_vision_botones,text="Iniciar cámara ARUCO",command=self.iniciar_camara_aruco,).pack(side="left")
         tk.Button(frame_vision_botones,text="Detener cámara ARUCO",command=self.detener_camara_aruco,).pack(side="left", padx=6)
         tk.Button(frame_vision_botones,text="Iniciar posición inicial",command=self.iniciar_alineacion_inicial,).pack(side="left", padx=6)
         tk.Button(frame_vision_botones,text="Detener posición inicial",command=self.detener_alineacion_inicial,).pack(side="left", padx=6)
@@ -229,10 +207,7 @@ class ServerGUI:
     def _parsear_mapa_aruco_manual(self, mapa_texto: str) -> list[str]:
         mapa_tokens = [token for token in mapa_texto.split() if token]
         if not mapa_tokens:
-            raise ValueError(
-                "Introduce al menos un mapeo en formato MarkerID:RobotID (ejemplo: 0:EP1 1:EP2)."
-            )
-
+            raise ValueError("Introduce al menos un mapeo en formato MarkerID:RobotID (ejemplo: 0:EP1 1:EP2).")
         marker_ids = set()
         robot_ids = set()
         resultado = []
