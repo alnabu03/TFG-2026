@@ -17,11 +17,11 @@ class DiscoveryServer:
 
     def send_discover(self):
         message = {"type": "DISCOVER",
-                "ip": "192.168.68.255",
+                "ip": "192.168.1.73",
                 "tcp_port": 5000}
         data = json.dumps(message).encode('utf-8') #Convertimos el mensaje de descubrimiento a JSON y luego a bytes para enviarlo por la red. El mensaje es un diccionario con una clave "type" que indica que es un mensaje de descubrimiento.
         for port in self.robot_ports:
-            self.sock.sendto(data, ('192.168.68.255', port)) #Enviamos el mensaje de descubrimiento a la dirección de broadcast en cada uno de los puertos que los robots están escuchando. Esto permite que cualquier robot en la red que esté escuchando en esos puertos reciba el mensaje y pueda responder.
+            self.sock.sendto(data, ('192.168.1.73', port)) #Enviamos el mensaje de descubrimiento a la dirección de broadcast en cada uno de los puertos que los robots están escuchando. Esto permite que cualquier robot en la red que esté escuchando en esos puertos reciba el mensaje y pueda responder.
         print("DISCOVER ENVIADO")
     
     def receive_responses(self):

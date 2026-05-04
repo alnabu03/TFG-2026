@@ -8,6 +8,7 @@ from choreography import PasoBaile, ReproductorBaile, parsear_baile
 from discover import DiscoveryServer
 from tcp_server import TcpServer
 from vision_Aruco import detectar_poses_robot
+from estudio_bailes import VentanaEstudioBailes
 
 ARUCO_FRAME_WIDTH = 1280
 ARUCO_FRAME_HEIGHT = 720
@@ -168,6 +169,10 @@ class ServerGUI:
 
         frame_bailes = tk.Frame(contenedor)
         frame_bailes.pack(fill="x", pady=(0, 10))
+
+        #VENTANA PARA BAILES PERSONALIZADOS
+        self.boton_estudio = tk.Button(frame_bailes,text="🎵 Abrir Estudio Multipista",bg="#3b82f6", fg="white", font=("Arial", 9, "bold"),command=self.abrir_estudio_multipista)
+        self.boton_estudio.pack(side="left", padx=8)
 
         self.boton_baile_personalizado = tk.Button(frame_bailes,text="Ejecutar baile creado",command=self.ejecutar_baile_personalizado)
         self.boton_baile_personalizado.pack(side="left")
@@ -394,6 +399,9 @@ class ServerGUI:
         
             frames_invalidos = 0
             max_frames_invalidos = 20
+            #Creamos el archivo de telemetría
+            with open("telemetría_pid.csv", "w") as f:
+                f.write("tiempo,robot,x_act,y_act,th_act,x_obj,y_obj,th_obj\n")
 
             while not self.detener_alineacion_evento.is_set():
                 ok, frame = cap.read()
@@ -426,8 +434,12 @@ class ServerGUI:
                         th_obj = objetivo["theta"]
                         #3. Empaquetamos el mensaje para el ESP 
                         comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
+                        #Guardo los datos en el csv
+                        with open("telemetría_pid.csv", "a") as f:
+                            f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
                         #4. Enviamos por tcp
                         self.enviar_comando_simple(robot_id, comando_pid)
+
                 cv2.imshow("Alineación inicial", frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -650,6 +662,15 @@ class ServerGUI:
     def limpiar_baile_editado(self):
         self.text_baile.delete("1.0", tk.END)
         self.escribir_log("Baile editado limpiado.")
+
+    def abrir_estudio_multipista(self):
+        robots_seleccionados = self.get_robots_seleccionados()
+        if not robots_seleccionados:
+            messagebox.showwarning("Aviso", "Selecciona al menos un robot de la lista para abrir su pista de baile.")
+            return
+            
+        # Abrimos la ventana pasándole las funciones que necesita para comunicarse
+        VentanaEstudioBailes(parent_root=self.root, robots_seleccionados=robots_seleccionados, enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log)
 
 if __name__ == "__main__":
     root = tk.Tk()
