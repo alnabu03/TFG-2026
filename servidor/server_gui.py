@@ -400,7 +400,7 @@ class ServerGUI:
             frames_invalidos = 0
             max_frames_invalidos = 20
             #Creamos el archivo de telemetría
-            with open("telemetría_pid.csv", "w") as f:
+            with open("telemetria_pid.csv", "a") as f:
                 f.write("tiempo,robot,x_act,y_act,th_act,x_obj,y_obj,th_obj\n")
 
             while not self.detener_alineacion_evento.is_set():
@@ -435,7 +435,7 @@ class ServerGUI:
                         #3. Empaquetamos el mensaje para el ESP 
                         comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
                         #Guardo los datos en el csv
-                        with open("telemetría_pid.csv", "a") as f:
+                        with open("telemetria_pid.csv", "a") as f:
                             f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
                         #4. Enviamos por tcp
                         self.enviar_comando_simple(robot_id, comando_pid)

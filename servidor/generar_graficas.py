@@ -1,8 +1,9 @@
 import csv
 import math
+import statistics
 import matplotlib.pyplot as plt
 
-def generar_graficas(archivo_csv):
+def analizar_telemetria(archivo_csv):
     # Diccionario para guardar los datos separados por cada robot
     datos_por_robot = {}
     
@@ -11,6 +12,10 @@ def generar_graficas(archivo_csv):
         with open(archivo_csv, 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
+
+                if row['tiempo'] == 'tiempo':
+                    continue
+
                 robot = row['robot']
                 t = float(row['tiempo'])
                 dx = float(row['x_obj']) - float(row['x_act'])
@@ -21,46 +26,87 @@ def generar_graficas(archivo_csv):
                 
                 # Si es la primera vez que vemos a este robot, le creamos su espacio
                 if robot not in datos_por_robot:
-                    datos_por_robot[robot] = {'tiempos': [], 'errores_dist': []}
-                
-                datos_por_robot[robot]['tiempos'].append(t)
-                datos_por_robot[robot]['errores_dist'].append(error_d)
-                
+                    datos_por_robot[robot] = []
+                    
+                datos_por_robot[robot].append({'t': t, 'error': error_d, 'dx': dx, 'dy': dy})
     except FileNotFoundError:
-        print(f"Error: No se encuentra el archivo {archivo_csv}. ¡Mueve primero el robot!")
+        print(f"Error: Archivo {archivo_csv} no encontrado.")
         return
-
-    if not datos_por_robot:
-        print("El archivo CSV está vacío.")
-        return
-
-    # --- DIBUJAR LA GRÁFICA ACADÉMICA ---
-    plt.figure(figsize=(10, 5))
     
-    # Dibujamos una línea por cada robot que haya participado
-    for robot, datos in datos_por_robot.items():
-        if not datos['tiempos']: 
-            continue
+    # 2. Separar los datos en "Intentos" (buscando pausas > 1 segundo)
+    for robot, registros in datos_por_robot.items():
+        intentos = []
+        intento_actual = []
+
+
+        for i in range(len(registros)):
+            intento_actual.append(registros[i])
             
-        # Normalizar el tiempo para que cada robot empiece en el segundo 0
-        t0 = datos['tiempos'][0]
-        tiempos_normalizados = [t - t0 for t in datos['tiempos']]
+            # Si es la última línea o hay un salto de tiempo de más de 1 segundo -> Cortamos aquí
+            if i == len(registros) - 1 or (registros[i+1]['t'] - registros[i]['t']) > 2.0:
+                if len(intento_actual) > 5: # Filtramos clics accidentales muy cortos
+                    intentos.append(intento_actual)
+                intento_actual = []
+                
+        if not intentos:
+            continue
+
+
+        # 3. Extraer métricas de la foto-finish (último instante de cada intento)
+        errores_finales = []
+        tiempos_asentamiento = []
+        errores_cuadraticos = []
+        intentos_descartados = 0
+
+        for intento in intentos:
+            inicio_t = intento[0]['t']
+            fin_t = intento[-1]['t']
+            error_final = intento[-1]['error']
+
+            if error_final > 40.0:
+                intentos_descartados += 1
+                continue
+            
+            errores_finales.append(error_final)
+            tiempos_asentamiento.append(fin_t - inicio_t)
+            errores_cuadraticos.append(intento[-1]['dx']**2 + intento[-1]['dy']**2)
+            print(f"Se han descartado {intentos_descartados} intentos por fallos de visión/señal.")
+
+        # 4. Cálculos Matemáticos para el TFG
+        n = len(intentos)
+        media_error = statistics.mean(errores_finales)
+        desviacion = statistics.stdev(errores_finales) if n > 1 else 0.0
+        rmse = math.sqrt(sum(errores_cuadraticos) / n)
+        media_tiempo = statistics.mean(tiempos_asentamiento)
+
+        # Imprimir en consola para copiar al documento
+        print(f"\n" + "="*40)
+        print(f"RESULTADOS ACADÉMICOS PARA: {robot}")
+        print(f"Número de iteraciones (n): {n}")
+        print(f"Error Medio Estacionario:  {media_error:.2f} px")
+        print(f"Desviación Típica (σ):     ±{desviacion:.2f} px")
+        print(f"Raíz del Error Cuadrático Medio (RMSE): {rmse:.2f} px")
+        print(f"Tiempo Medio de Maniobra:  {media_tiempo:.2f} s")
+        print("="*40 + "\n")
+
+        # 5. Dibujar el Histograma
+        plt.figure(figsize=(8, 5))
+        # Creamos las barras agrupando los errores
+        plt.hist(errores_finales, bins=8, color='#3b82f6', edgecolor='black', alpha=0.8)
         
-        plt.plot(tiempos_normalizados, datos['errores_dist'], label=f'Error Distancia ({robot})', linewidth=2)
-    
-    # Línea del umbral de aparcamiento
-    plt.axhline(y=10, color='r', linestyle='--', label='Umbral Fase 2 (10px)') 
-    
-    plt.title('Evolución del Error de Distancia - Control PID Multirrobot', fontsize=14)
-    plt.xlabel('Tiempo (segundos)', fontsize=12)
-    plt.ylabel('Distancia al objetivo (píxeles)', fontsize=12)
-    plt.grid(True, linestyle=':', alpha=0.7)
-    plt.legend()
-    
-    # Guardar imagen perfecta para LaTeX
-    plt.savefig('grafica_distancia_multirrobot.png', dpi=300, bbox_inches='tight')
-    print("¡Gráfica guardada como grafica_distancia_multirrobot.png lista para LaTeX!")
-    plt.show()
+        # Dibujamos una línea roja marcando dónde está la media
+        plt.axvline(media_error, color='#ef4444', linestyle='dashed', linewidth=2, label=f'Media ({media_error:.2f} px)')
+        
+        plt.title(f'Distribución del Error de Posicionamiento - {robot} (n={n})', fontsize=13, fontweight='bold')
+        plt.xlabel('Error final respecto al objetivo (píxeles)', fontsize=11)
+        plt.ylabel('Frecuencia (Nº de maniobras)', fontsize=11)
+        plt.grid(axis='y', linestyle='--', alpha=0.6)
+        plt.legend()
+        
+        nombre_archivo = f'histograma_{robot}.png'
+        plt.savefig(nombre_archivo, dpi=300, bbox_inches='tight')
+        print(f"📊 Histograma de alta resolución guardado como '{nombre_archivo}'")
+        plt.show()
 
 if __name__ == "__main__":
-    generar_graficas("telemetria_pid.csv")
+    analizar_telemetria("telemetria_pid.csv")
