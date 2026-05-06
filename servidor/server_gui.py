@@ -9,6 +9,7 @@ from discover import DiscoveryServer
 from tcp_server import TcpServer
 from vision_Aruco import detectar_poses_robot
 from estudio_bailes import VentanaEstudioBailes
+import math
 
 ARUCO_FRAME_WIDTH = 1280
 ARUCO_FRAME_HEIGHT = 720
@@ -422,23 +423,25 @@ class ServerGUI:
                     if marker_id in mapa:
                         robot_id = mapa[marker_id]
                         pose_por_robot[robot_id] = pose 
-                for robot_id, objetivo in objetivos.items(): #para cada robot que estamos alineando, comparamos su pose actual (pose_por_robot) con su objetivo (objetivos) y decidimos qué comando enviarle para corregir su posición y orientación. 
+                for robot_id, objetivo in objetivos.items(): #para cada robot que estamos alineando, sacamos su posicion actual con su posicion objetivo y la enviamos al robot.
                     if robot_id in pose_por_robot:
                         #1. Extraemos los datos que ve la cámara.
-                        x_act = pose_por_robot[robot_id]["x"]
-                        y_act = pose_por_robot[robot_id]["y"]
-                        th_act = pose_por_robot[robot_id]["theta"]
+                        x_act = pose_por_robot[robot_id]["x"], y_act = pose_por_robot[robot_id]["y"], th_act = pose_por_robot[robot_id]["theta"]
                         #2. Extraemos los datos del objetivo.
-                        x_obj = objetivo["x"]
-                        y_obj = objetivo["y"]
-                        th_obj = objetivo["theta"]
-                        #3. Empaquetamos el mensaje para el ESP 
-                        comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
-                        #Guardo los datos en el csv
-                        with open("telemetria_pid.csv", "a") as f:
-                            f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
-                        #4. Enviamos por tcp
-                        self.enviar_comando_simple(robot_id, comando_pid)
+                        x_obj = objetivo["x"], y_obj = objetivo["y"], th_obj = objetivo["theta"]
+
+                        distancia = math.sqrt((x_obj - x_act)**2 + (y_obj - y_act)**2)
+                        if distancia < 20:
+                            self.envair_comando_simple(robot_id, "PARA")
+                        else:
+
+                            #3. Empaquetamos el mensaje para el ESP 
+                            comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
+                            #Guardo los datos en el csv
+                            with open("telemetria_pid.csv", "a") as f:
+                                f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
+                            #4. Enviamos por tcp
+                            self.enviar_comando_simple(robot_id, comando_pid)
 
                 cv2.imshow("Alineación inicial", frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -450,14 +453,81 @@ class ServerGUI:
         except Exception as error:
             self._escribir_log_desde_hilo(f"Alineación: error inesperado: {error}")
             self._escribir_log_desde_hilo(traceback.format_exc())
-                
+
+    def iniciar_baile_waypoints(self, rutas):
+        if self._camara_aruco_activa():
+            messagebox.showwarning("Aviso", "Detén primero 'Iniciar cámara ARUCO'.")
+            return
+        
+        fuente = self.entry_fuente_aruco.get().strip() or "0"
+        mapa_manual_texto = self.entry_mapa_aruco.get().strip()
+        mapa_tokens = self._parsear_mapa_aruco_manual(mapa_manual_texto) if mapa_manual_texto else self._construir_mapa_robots_seleccionados()
+
+        self.detener_alineacion_evento.clear()
+        self.hilo_alineacion = threading.Thread(target=self._bucle_baile_waypoints, args=(fuente, mapa_tokens, rutas), daemon=True)
+        self.hilo_alineacion.start()
+        self.escribir_log("Modo Baile por Waypoints (Máquina de estados) INICIADO.")
+
+    def _bucle_baile_waypoints(self, fuente, mapa_tokens, rutas):
+        try:
+            mapa = {int(t.split(":")[0]): t.split(":")[1] for t in mapa_tokens}
+
+            detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50), cv2.aruco.DetectorParameters())
+            cap = cv2.VideoCapture(int(fuente) if fuente.isdigit() else fuente)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+            #Todos los robots empiezan en el punto 0 de su ruta
+            indices_ruta = {robot_id: 0 for robot_id in rutas.keys()}
+            while not self.detener_alineacion_evento.is_set():
+                ok, frame = cap.read()
+                if not ok: continue
+
+                poses_detectadas, frame_dibujado = detectar_poses_robot(frame, detector)
+                pose_por_robot = {mapa[m_id]: p for m_id, p in poses_detectadas.items() if m_id in mapa}
+
+                for robot_id, ruta in rutas.items():
+                    if robot_id in pose_por_robot:
+                        indice_actual = indices_ruta[robot_id]
+
+                        #Si ya se han completado todos los puntos, lo ignoramos:
+                        if indice_actual >= len(ruta):
+                            continue
+                    
+                        objetivo = ruta[indice_actual]
+                        x_act, y_act, th_act = pose_por_robot[robot_id]["x"], pose_por_robot[robot_id]["y"], pose_por_robot[robot_id]["theta"]
+                        x_obj, y_obj, th_obj = objetivo["x"], objetivo["y"], objetivo["theta"]
+                        # Comprobar si hemos llegado al punto actual
+                        distancia = math.sqrt((x_obj - x_act)**2 + (y_obj - y_act)**2)
+                        if distancia < 20.0:
+                            self._escribir_log_desde_hilo(f"✅ {robot_id} alcanzó el punto {indice_actual+1}/{len(ruta)}")
+                            self.enviar_comando_simple(robot_id, "PARA")
+                            indices_ruta[robot_id] += 1 # ¡AVANZAMOS AL SIGUIENTE ESTADO!
+                        else:
+                            comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
+                            self.enviar_comando_simple(robot_id, comando_pid)
+
+                cv2.imshow("Coreografía Inteligente (Waypoints)", frame_dibujado)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+
+            for robot_id in rutas.keys():
+                self.enviar_comando_simple(robot_id, "PARA")
+            cap.release()
+            cv2.destroyWindow("Coreografía Inteligente (Waypoints)")
+    
+        except Exception as e:
+            print(f"Error en el balie {e}")
+        
+
+
     def escribir_log(self, texto):
         self.text_log.config(state="normal")
         self.text_log.insert(tk.END, texto + "\n")
         self.text_log.see(tk.END)
         self.text_log.config(state="disabled")
 
-    def get_robot_seleccionado(self):
+    def get_robot_seleccionado(self): #????????????????????????????????????????????????????????????????????????????????????????????????
         seleccion = self.lista_robots.curselection()
         if not seleccion:
             return None
@@ -670,8 +740,7 @@ class ServerGUI:
             return
             
         # Abrimos la ventana pasándole las funciones que necesita para comunicarse
-        VentanaEstudioBailes(parent_root=self.root, robots_seleccionados=robots_seleccionados, enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log)
-
+        VentanaEstudioBailes(app_padre=self, robots_seleccionados=robots_seleccionados, enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log)
 if __name__ == "__main__":
     root = tk.Tk()
     app = ServerGUI(root)

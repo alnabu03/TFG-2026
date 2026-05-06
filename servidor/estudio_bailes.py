@@ -7,20 +7,20 @@ import threading
 
 
 #Configuracion de la IA
-GEMINI_API_KEY = "AIzaSyBd2VNgbvVbvn7BQfYBuZT_45_X0EcGk-w"
+GEMINI_API_KEY = "AIzaSyDxa9jIbAPd97xgqOj-f0d1ULgIwdV0je4"
 genai.configure(api_key=GEMINI_API_KEY)
-modelo_ia = genai.GenerativeModel('gemini-2.5-flash')
+modelo_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 
 class VentanaEstudioBailes:
-    def __init__(self, parent_root, robots_seleccionados, enviar_comando, escribir_log):
-        self.parent_root = parent_root
+    def __init__(self, app_padre, robots_seleccionados, enviar_comando, escribir_log):
+        self.app_padre = app_padre
         self.robots= robots_seleccionados
         self.enviar_comando = enviar_comando
         self.escribir_log = escribir_log
 
         #Cramos la ventana secundaria
-        self.window = tk.Toplevel(parent_root)
+        self.window = tk.Toplevel(app_padre.root)
         self.window.title("Personalización de coreografías")
         self.window.geometry("800x500")
         self.window.minsize(600, 450)
@@ -84,14 +84,18 @@ class VentanaEstudioBailes:
 
     def _procesar_ia_thread(self, robot, peticion, entry_widget):
         prompt_oculto = f"""
-        Eres el traductor del sistema de control de un robot móvil. 
-        Tu única función es traducir las intenciones del usuario a un formato estricto de comandos.
-        Los ÚNICOS comandos válidos son: AVANZA, RETROCEDE, IZQUIERDA, DERECHA, PARA.
-        Cada comando debe ir seguido de un espacio y el tiempo en milisegundos (1 segundo = 1000 ms).
-        Si el usuario no especifica tiempo, asume valores lógicos (minimo necesitamos 1000ms para que el paso se ejecute correctamente).
-        REGLA DE ORO: Responde ÚNICAMENTE con la lista de comandos. No saludes, no uses markdown, no pongas comillas. Solo texto plano.
+        Eres el coreógrafo de un enjambre de robots. Tu escenario (la imagen de la cámara) mide 300 x400 píxeles.
+        Tu única función es generar una ruta de puntos (Waypoints) para que el robot se mueva trazando figuras (cuadrados, ochos, líneas).
         
-        Petición del usuario: "{peticion}"
+        REGLA 1: Solo puedes usar el comando MOVE seguido de X, Y, y THETA (ángulo).
+        REGLA 2: No uses comillas, ni markdown, ni expliques nada. Solo la lista de comandos.
+        
+        Ejemplo de formato:
+        MOVE 400 300 0
+        MOVE 400 500 90
+        MOVE 600 500 180
+        
+        Petición del usuario para el robot {robot}: "{peticion}"
         """
         try:
             respuesta = modelo_ia.generate_text(prompt=prompt_oculto) if hasattr(modelo_ia, 'generate_text') else modelo_ia.generate_content(prompt_oculto)
@@ -101,10 +105,10 @@ class VentanaEstudioBailes:
             codigo_generado = codigo_generado.replace("```", "").replace("python", "").replace("text", "").strip()
 
             # Volcamos el resultado en la caja de texto (usando root.after para volver al hilo principal de Tkinter)
-            self.parent_root.after(0, lambda: self._volcar_resultado_ia(robot, codigo_generado, entry_widget))
+            self.app_padre.root.after(0, lambda: self._volcar_resultado_ia(robot, codigo_generado, entry_widget))
         except Exception as e:
-            self.parent_root.after(0, lambda: messagebox.showerror("Error IA", f"No se pudo conectar con la IA: {e}"))
-            self.parent_root.after(0, lambda: entry_widget.config(state="normal"))
+            self.app_padre.root.after(0, lambda: messagebox.showerror("Error IA", f"No se pudo conectar con la IA: {e}"))
+            self.app_padre.root.after(0, lambda: entry_widget.config(state="normal"))
 
     def _volcar_resultado_ia(self, robot, codigo, entry_widget):
         caja_texto = self.cajas_texto[robot]
@@ -114,30 +118,26 @@ class VentanaEstudioBailes:
         self.escribir_log(f"IA ha generado una coreografía para la pista {robot}")
 
     def ejecutar_todo(self):
-        try:
-            delay = int(self.entry_delay.get())
-            if delay < 0: raise ValueError
-        except ValueError:
-            messagebox.showerror("Error", "El delay debe ser un número positivo mayor que 0.")
-            return 
-        
-        bailes_validados = {}
-
+        rutas_completas = {}
         for robot, caja in self.cajas_texto.items():
             contenido  = caja.get("1.0", tk.END).strip()
-            if contenido: #Solo parseamos si hay texto
-                try:
-                    pasos = parsear_baile(contenido)
-                    bailes_validados[robot] = pasos
-                except  ValueError as e:
-                    messagebox.showerror("Error de sintaxis", f"Error en la pista de {robot}:\n{str(e)}")
-                    return 
-        if not bailes_validados:
-            messagebox.showwarning("Aviso", "Todas las pistas están vacías.")
+            if contenido:
+                ruta_robot = []
+                #ahora leemos el texto generado por la ia linea a linea
+                for linea in contenido.splitlines():
+                    partes = linea.split()
+                    if len(partes) >= 4 and partes[0] == "MOVE":
+                        try:
+                            pto = {"x": float(partes[1]), "y": float(partes[2]), "theta": float(partes[3])}
+                            ruta_robot.append(pto)
+                        except ValueError:
+                            pass # Ignoramos si hay alguna letra colada por error
+                if ruta_robot:
+                    rutas_completas[robot] = ruta_robot
+        if not rutas_completas:
+            messagebox.showwarning("Aviso", "No hay rutas válidas. Usa el formato 'MOVE X Y THETA'.")
             return
-        self.escribir_log(f"Lanzando coreografía multipista para {len(bailes_validados)} robots...")
+        self.escribir_log(f"Lanzando Coreografía con Waypoints PID para {len(rutas_completas)} robots...")
+        # Aquí enviamos la lista completa de puntos de vuelta a tu archivo server_gui.py
+        self.app_padre.iniciar_baile_waypoints(rutas_completas)
 
-        #Asignamos un reproductor a cada robot y los disparamos a la vez
-        for robot, pasos in bailes_validados.items():
-            reproductor = ReproductorBaile(root=self.parent_root,enviar_comando=self.enviar_comando,escribir_log=self.escribir_log)
-            reproductor.ejecutar_sincronizado([robot],pasos, delay)
