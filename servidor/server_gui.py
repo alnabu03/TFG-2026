@@ -426,22 +426,20 @@ class ServerGUI:
                 for robot_id, objetivo in objetivos.items(): #para cada robot que estamos alineando, sacamos su posicion actual con su posicion objetivo y la enviamos al robot.
                     if robot_id in pose_por_robot:
                         #1. Extraemos los datos que ve la cámara.
-                        x_act = pose_por_robot[robot_id]["x"], y_act = pose_por_robot[robot_id]["y"], th_act = pose_por_robot[robot_id]["theta"]
+                        x_act = pose_por_robot[robot_id]["x"]
+                        y_act = pose_por_robot[robot_id]["y"]
+                        th_act = pose_por_robot[robot_id]["theta"]
                         #2. Extraemos los datos del objetivo.
-                        x_obj = objetivo["x"], y_obj = objetivo["y"], th_obj = objetivo["theta"]
-
-                        distancia = math.sqrt((x_obj - x_act)**2 + (y_obj - y_act)**2)
-                        if distancia < 20:
-                            self.envair_comando_simple(robot_id, "PARA")
-                        else:
-
-                            #3. Empaquetamos el mensaje para el ESP 
-                            comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
-                            #Guardo los datos en el csv
-                            with open("telemetria_pid.csv", "a") as f:
-                                f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
-                            #4. Enviamos por tcp
-                            self.enviar_comando_simple(robot_id, comando_pid)
+                        x_obj = objetivo["x"]
+                        y_obj = objetivo["y"]
+                        th_obj = objetivo["theta"]
+                        #3. Empaquetamos el mensaje para el ESP 
+                        comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
+                        #Guardo los datos en el csv
+                        with open("telemetria_pid.csv", "a") as f:
+                            f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
+                        #4. Enviamos por tcp
+                        self.enviar_comando_simple(robot_id, comando_pid)
 
                 cv2.imshow("Alineación inicial", frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
