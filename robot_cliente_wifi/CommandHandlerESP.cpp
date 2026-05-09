@@ -295,6 +295,13 @@ void CommandHandlerESP::ejecutarComando(String comando) {
         robot->parar();
         modoPidActivo = false;
     }
+    {
+    else if (comando == "MOTORES"){
+        int vel_izq = mensaje.substring(0, mensaje.indexOf(' ')).toInt(); //Convertimos la primera palabra del contenido de mensaje a un int
+        int vel_der = mensaje.substring(mensaje.indexOf(' ')+1).toInt();
+        robot->moverVelocidades(vel_izq, vel_der);
+    }
+    }
     else if (comando.startsWith(id + " PID_DATA")) {
         // Obtenemos un puntero al inicio de los números, saltándonos "EP1 PID_DATA "
         String prefijo = id + " PID_DATA ";
