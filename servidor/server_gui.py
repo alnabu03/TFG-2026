@@ -96,7 +96,7 @@ class ServerGUI:
         # Botón enviar
         self.boton_enviar = tk.Button(contenedor,text="Enviar comando",command=self.enviar_comando_manual)
         self.boton_enviar.pack(pady=(0, 10))
-
+        
         # ===== VISION ARUCO =====
         frame_vision = tk.LabelFrame(contenedor, text="Visión ARUCO")
         frame_vision.pack(fill="x", pady=(0, 10))
@@ -117,6 +117,9 @@ class ServerGUI:
 
         self.boton_autocompletar_mapa = tk.Button(frame_vision,text="Autocompletar mapa desde selección",command=self.autocompletar_mapa_aruco_desde_seleccion,)
         self.boton_autocompletar_mapa.grid(row=3, column=0, columnspan=2, sticky="w", padx=6, pady=(0, 4))
+
+        self.usar_pid_servidor = tk.BooleanVar(value=False) # Por defecto, PID en el robot
+        tk.Checkbutton(frame_vision, text="💻 Usar PID del Servidor (Experimental)", variable=self.usar_pid_servidor, font=("Arial", 9, "bold"), fg="#1e40af").grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=5)
 
         frame_vision_botones = tk.Frame(frame_vision)
         frame_vision_botones.grid(row=4, column=0, columnspan=2, sticky="w", padx=6, pady=4)
@@ -402,7 +405,7 @@ class ServerGUI:
             max_frames_invalidos = 20
             #Creamos el archivo de telemetría
             with open("telemetria_pid.csv", "a") as f:
-                f.write("tiempo,robot,x_act,y_act,th_act,x_obj,y_obj,th_obj\n")
+                f.write("tiempo,robot,x_act,y_act,th_act,x_obj,y_obj,th_obj,modo_pid\n")
 
             while not self.detener_alineacion_evento.is_set():
                 ok, frame = cap.read()
@@ -435,9 +438,12 @@ class ServerGUI:
                         th_obj = objetivo["theta"]
                         #3. Empaquetamos el mensaje para el ESP 
                         comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
-                        #Guardo los datos en el csv
+                        # Obtenemos quién está calculando el PID
+                        modo_actual = "SERVIDOR" if self.usar_pid_servidor.get() else "ESP32"
+                        
+                        # Guardo los datos en el csv añadiendo la etiqueta al final
                         with open("telemetria_pid.csv", "a") as f:
-                            f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f}\n")
+                            f.write(f"{time.time()},{robot_id},{x_act:.1f},{y_act:.1f},{th_act:.1f},{x_obj:.1f},{y_obj:.1f},{th_obj:.1f},{modo_actual}\n")
                         #4. Enviamos por tcp
                         self.enviar_comando_simple(robot_id, comando_pid)
 
@@ -466,7 +472,7 @@ class ServerGUI:
         self.hilo_alineacion.start()
         self.escribir_log("Modo Baile por Waypoints (Máquina de estados) INICIADO.")
 
-    def _bucle_baile_waypoints(self, fuente, mapa_tokens, rutas):
+    def _bucle_baile_waypoints(self, fuente, mapa_tokens, rutas): #ESTA FUNCION NO LA PODEMOS REFACTORIZAR USANDO EL MENSAJE QUE ENVIA EL ROBOT AL SERVIDOR CUANDO LLEGA A UN OBJETO?
         try:
             mapa = {int(t.split(":")[0]): t.split(":")[1] for t in mapa_tokens}
 
@@ -517,6 +523,92 @@ class ServerGUI:
         except Exception as e:
             print(f"Error en el balie {e}")
         
+
+    def _calcular_pid_servidor(self, robot_id, x_act, y_act, th_act, x_obj, y_obj, th_obj):
+        import math
+
+        # --- MEMORIA DEL ESTADO (Equivalente al 'static bool enFase2' de C++) ---
+        if not hasattr(self, 'fase2_robots'):
+            self.fase2_robots = {} # Creamos el diccionario si no existe
+        if robot_id not in self.fase2_robots:
+            self.fase2_robots[robot_id] = False # Por defecto, Fase 1
+
+        dx = x_obj - x_act
+        dy = y_obj - y_act
+        error_dist = math.sqrt(dx*dx + dy*dy)
+
+        # Control de histéresis
+        if error_dist < 20.0:
+            self.fase2_robots[robot_id] = True
+        elif error_dist > 30.0:
+            self.fase2_robots[robot_id] = False
+
+        if self.fase2_robots[robot_id]:
+            # === FASE 2: ROTACIÓN FINAL PARA AJUSTAR ORIENTACIÓN ===
+            angulo_final_rad = th_obj * (math.pi / 180.0)
+            angulo_actual_rad = th_act * (math.pi / 180.0)
+            error_th_final = angulo_final_rad - angulo_actual_rad
+            
+            # Buscamos el ángulo más corto
+            error_th_final = math.atan2(math.sin(error_th_final), math.cos(error_th_final))
+            
+            if abs(error_th_final) < 0.15:
+                # OBJETIVO ALCANZADO (Devolvemos velocidades 0 y un aviso de terminado)
+                self.fase2_robots[robot_id] = False # Reseteamos para el próximo waypoint
+                return 0, 0, True 
+            else:
+                # Si hemos llegado pero no alineados, giramos sobre nosotros mismos
+                vel_giro_final = 25.0 * error_th_final
+                
+                # Limitamos la velocidad de giro para no perder precisión
+                if vel_giro_final > 20: vel_giro_final = 20
+                if vel_giro_final < -20: vel_giro_final = -20
+                
+                pwm_min_giro = 15
+                if 0 < vel_giro_final < pwm_min_giro: vel_giro_final = pwm_min_giro
+                if 0 > vel_giro_final > -pwm_min_giro: vel_giro_final = -pwm_min_giro
+                
+                # Mover velocidades (izquierdo invertido para rotar sobre sí mismo)
+                return int(-vel_giro_final), int(vel_giro_final), False
+
+        # === FASE 1: ACERCAMIENTO ===
+        angulo_objetivo_rad = math.atan2(-dy, dx)
+        angulo_actual_rad = th_act * math.pi / 180.0
+        error_ang = angulo_objetivo_rad - angulo_actual_rad
+        
+        # Normalizar a [-pi, pi]
+        error_ang = math.atan2(math.sin(error_ang), math.cos(error_ang))
+        
+        # Ajustes del PID idénticos a tu ESP32
+        kp_dist = 0.5
+        kp_ang = 60.0
+        
+        velocidad_avance = kp_dist * error_dist
+        if velocidad_avance > 120: 
+            velocidad_avance = 120 # Limitamos para no perder precisión
+            
+        velocidad_giro = kp_ang * error_ang
+        if abs(error_ang) > (math.pi / 2.0):
+            velocidad_avance = 0 # Si el error es mayor de 90 grados, solo giramos
+            
+        vel_izquierda = velocidad_avance - velocidad_giro
+        vel_derecha = velocidad_avance + velocidad_giro
+        
+        # Limitamos velocidades al rango del maqueen (0 a 255)
+        if vel_izquierda > 255: vel_izquierda = 255
+        if vel_izquierda < -255: vel_izquierda = -255
+        if vel_derecha > 255: vel_derecha = 255
+        if vel_derecha < -255: vel_derecha = -255
+        
+        # Buscamos el mínimo valor con el que el robot es capaz de moverse
+        pwm_minimo = 15
+        if 0 < vel_izquierda < pwm_minimo: vel_izquierda = pwm_minimo
+        if 0 > vel_izquierda > -pwm_minimo: vel_izquierda = -pwm_minimo
+        if 0 < vel_derecha < pwm_minimo: vel_derecha = pwm_minimo
+        if 0 > vel_derecha > -pwm_minimo: vel_derecha = -pwm_minimo
+        
+        return int(vel_izquierda), int(vel_derecha), False
+
 
 
     def escribir_log(self, texto):
@@ -739,6 +831,19 @@ class ServerGUI:
             
         # Abrimos la ventana pasándole las funciones que necesita para comunicarse
         VentanaEstudioBailes(app_padre=self, robots_seleccionados=robots_seleccionados, enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log)
+
+    def _obtener_comando_segun_modo(self, robot_id, x_act, y_act, th_act, x_obj, y_obj, th_obj):
+        if self.usar_pid_servidor.get():
+            # El servidor hace la matemática y nos dice si hemos llegado
+            pwm_izq, pwm_der, alcanzado = self._calcular_pid_servidor(robot_id, x_act, y_act, th_act, x_obj, y_obj, th_obj)
+            
+            if alcanzado:
+                return "PARA"
+            else:
+                return f"MOTORES {pwm_izq} {pwm_der}"
+        else:
+            # Modo Original: El ESP32 se encarga
+            return f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
 if __name__ == "__main__":
     root = tk.Tk()
     app = ServerGUI(root)

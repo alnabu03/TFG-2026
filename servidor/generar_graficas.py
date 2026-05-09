@@ -4,15 +4,13 @@ import statistics
 import matplotlib.pyplot as plt
 
 def analizar_telemetria(archivo_csv):
-    # Diccionario para guardar los datos separados por cada robot
+    # Diccionario para guardar los datos separados por cada robot Y MODO
     datos_por_robot = {}
     
     try:
-        # Leer los datos guardados por tu servidor
         with open(archivo_csv, 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
-
                 if row['tiempo'] == 'tiempo':
                     continue
 
@@ -21,38 +19,40 @@ def analizar_telemetria(archivo_csv):
                 dx = float(row['x_obj']) - float(row['x_act'])
                 dy = float(row['y_obj']) - float(row['y_act'])
                 
-                # Matemáticas correctas para el error de distancia (Teorema de Pitágoras)
+                # --- NUEVO: Leer la columna del modo (con valor por defecto por si hay datos viejos) ---
+                modo_pid = row.get('modo_pid', 'ESP32').strip()
+                
+                # --- NUEVO: Creamos una clave combinada (Ej: "EP1_SERVIDOR") ---
+                clave_grupo = f"{robot}_{modo_pid}"
+                
                 error_d = math.sqrt(dx**2 + dy**2) 
                 
-                # Si es la primera vez que vemos a este robot, le creamos su espacio
-                if robot not in datos_por_robot:
-                    datos_por_robot[robot] = []
+                if clave_grupo not in datos_por_robot:
+                    datos_por_robot[clave_grupo] = []
                     
-                datos_por_robot[robot].append({'t': t, 'error': error_d, 'dx': dx, 'dy': dy})
+                datos_por_robot[clave_grupo].append({'t': t, 'error': error_d, 'dx': dx, 'dy': dy})
     except FileNotFoundError:
         print(f"Error: Archivo {archivo_csv} no encontrado.")
         return
     
-    # 2. Separar los datos en "Intentos" (buscando pausas > 1 segundo)
-    for robot, registros in datos_por_robot.items():
+    # 2. Separar los datos en "Intentos" 
+    # --- NUEVO: Ahora iteramos sobre la clave combinada ---
+    for clave_grupo, registros in datos_por_robot.items():
         intentos = []
         intento_actual = []
-
 
         for i in range(len(registros)):
             intento_actual.append(registros[i])
             
-            # Si es la última línea o hay un salto de tiempo de más de 1 segundo -> Cortamos aquí
             if i == len(registros) - 1 or (registros[i+1]['t'] - registros[i]['t']) > 2.0:
-                if len(intento_actual) > 5: # Filtramos clics accidentales muy cortos
+                if len(intento_actual) > 5: 
                     intentos.append(intento_actual)
                 intento_actual = []
                 
         if not intentos:
             continue
 
-
-        # 3. Extraer métricas de la foto-finish (último instante de cada intento)
+        # 3. Extraer métricas de la foto-finish
         errores_finales = []
         tiempos_asentamiento = []
         errores_cuadraticos = []
@@ -70,10 +70,16 @@ def analizar_telemetria(archivo_csv):
             errores_finales.append(error_final)
             tiempos_asentamiento.append(fin_t - inicio_t)
             errores_cuadraticos.append(intento[-1]['dx']**2 + intento[-1]['dy']**2)
-            print(f"Se han descartado {intentos_descartados} intentos por fallos de visión/señal.")
+            
+        if intentos_descartados > 0:
+            print(f"Se han descartado {intentos_descartados} intentos en {clave_grupo} por fallos de visión/señal.")
+
+        # Evitar división por cero si se descartaron todos
+        if not errores_finales:
+            continue
 
         # 4. Cálculos Matemáticos para el TFG
-        n = len(intentos)
+        n = len(intentos) - intentos_descartados
         media_error = statistics.mean(errores_finales)
         desviacion = statistics.stdev(errores_finales) if n > 1 else 0.0
         rmse = math.sqrt(sum(errores_cuadraticos) / n)
@@ -81,7 +87,7 @@ def analizar_telemetria(archivo_csv):
 
         # Imprimir en consola para copiar al documento
         print(f"\n" + "="*40)
-        print(f"RESULTADOS ACADÉMICOS PARA: {robot}")
+        print(f"RESULTADOS ACADÉMICOS PARA: {clave_grupo}") # <--- NUEVO
         print(f"Número de iteraciones (n): {n}")
         print(f"Error Medio Estacionario:  {media_error:.2f} px")
         print(f"Desviación Típica (σ):     ±{desviacion:.2f} px")
@@ -91,22 +97,21 @@ def analizar_telemetria(archivo_csv):
 
         # 5. Dibujar el Histograma
         plt.figure(figsize=(8, 5))
-        # Creamos las barras agrupando los errores
         plt.hist(errores_finales, bins=8, color='#3b82f6', edgecolor='black', alpha=0.8)
         
-        # Dibujamos una línea roja marcando dónde está la media
         plt.axvline(media_error, color='#ef4444', linestyle='dashed', linewidth=2, label=f'Media ({media_error:.2f} px)')
         
-        plt.title(f'Distribución del Error de Posicionamiento - {robot} (n={n})', fontsize=13, fontweight='bold')
+        # --- NUEVO: Títulos y nombres de archivo dinámicos ---
+        plt.title(f'Distribución del Error de Posicionamiento\n{clave_grupo.replace("_", " ")} (n={n})', fontsize=13, fontweight='bold')
         plt.xlabel('Error final respecto al objetivo (píxeles)', fontsize=11)
         plt.ylabel('Frecuencia (Nº de maniobras)', fontsize=11)
         plt.grid(axis='y', linestyle='--', alpha=0.6)
         plt.legend()
         
-        nombre_archivo = f'histograma_{robot}.png'
+        nombre_archivo = f'histograma_{clave_grupo}.png'
         plt.savefig(nombre_archivo, dpi=300, bbox_inches='tight')
         print(f"📊 Histograma de alta resolución guardado como '{nombre_archivo}'")
-        plt.show()
+        plt.close() # <-- Buena práctica: cerrar la figura para que no se solapen si hay varias
 
 if __name__ == "__main__":
     analizar_telemetria("telemetria_pid.csv")
