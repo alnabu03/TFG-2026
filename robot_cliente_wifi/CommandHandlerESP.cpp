@@ -80,6 +80,7 @@ bool CommandHandlerESP::esComandoParaMi(String mensaje) {
     if (mensaje == id + " DERECHA") return true;
     if (mensaje == id + " PARA") return true;
     if (mensaje.startsWith(id + " PID_DATA")) return true;
+    if (mensaje.startsWith(id + " MOTORES")) return true; 
 
     return false;
 }
@@ -295,13 +296,21 @@ void CommandHandlerESP::ejecutarComando(String comando) {
         robot->parar();
         modoPidActivo = false;
     }
-    {
-    else if (comando == "MOTORES"){
-        int vel_izq = mensaje.substring(0, mensaje.indexOf(' ')).toInt(); //Convertimos la primera palabra del contenido de mensaje a un int
-        int vel_der = mensaje.substring(mensaje.indexOf(' ')+1).toInt();
+    else if (comando.startsWith(id + " MOTORES")) {
+        // 1. Calculamos cuánto ocupa el prefijo (ej: "EP1 MOTORES ")
+        String prefijo = id + " MOTORES ";
+        
+        // 2. Recortamos el comando para quedarnos solo con los números (ej: "150 120")
+        String valores = comando.substring(prefijo.length());
+        
+        // 3. Extraemos la velocidad izquierda y derecha
+        int vel_izq = valores.substring(0, valores.indexOf(' ')).toInt();
+        int vel_der = valores.substring(valores.indexOf(' ') + 1).toInt();
+        
+        // 4. Movemos los motores
         robot->moverVelocidades(vel_izq, vel_der);
     }
-    }
+    
     else if (comando.startsWith(id + " PID_DATA")) {
         // Obtenemos un puntero al inicio de los números, saltándonos "EP1 PID_DATA "
         String prefijo = id + " PID_DATA ";
@@ -326,7 +335,6 @@ void CommandHandlerESP::ejecutarComando(String comando) {
             Serial.println("Error: Formato PID_DATA incorrecto.");
         }
     }
-
 }
 
 void CommandHandlerESP::calcularYEjecutarPID(){
@@ -341,7 +349,7 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     if(dt <= 0) return;
     ultimoTiempoPid = ahora;
 
-    float dx = x_obj - x_act;
+    float dx = x_obj - x_act; 
     float dy = y_obj - y_act;
     float error_dist = sqrt(dx*dx + dy*dy);
 
@@ -414,3 +422,4 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     robot->moverVelocidades((int)vel_izquierda, (int)vel_derecha);
 
 }
+

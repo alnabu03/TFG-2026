@@ -437,8 +437,7 @@ class ServerGUI:
                         y_obj = objetivo["y"]
                         th_obj = objetivo["theta"]
                         #3. Empaquetamos el mensaje para el ESP 
-                        comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
-                        # Obtenemos quién está calculando el PID
+                        comando_pid = self._obtener_comando_segun_modo(robot_id, x_act, y_act, th_act, x_obj, y_obj, th_obj)                        # Obtenemos quién está calculando el PID
                         modo_actual = "SERVIDOR" if self.usar_pid_servidor.get() else "ESP32"
                         
                         # Guardo los datos en el csv añadiendo la etiqueta al final
