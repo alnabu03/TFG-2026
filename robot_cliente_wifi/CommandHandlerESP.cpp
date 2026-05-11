@@ -394,7 +394,7 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     error_ang = atan2(sin(error_ang), cos(error_ang)); // Normalizar a [-pi, pi]
     //Ajustes del PID (podemos jugar con estos valores)
     float kp_dist = 0.5; //Potencia de avance (el maqueen tiene de 0 a 255)
-    float kp_ang = 60; //Potencia de giro el mejor por ahora ha sido de 40
+    float kp_ang = 65; //Potencia de giro el mejor por ahora ha sido de 40
 
     float velocidad_avance = kp_dist * error_dist;
     if (velocidad_avance > 120) velocidad_avance = 120; // Limitamos la velocidad de avance para que no sea demasiado rápida y pierda precisión

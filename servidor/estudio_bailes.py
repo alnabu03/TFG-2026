@@ -87,21 +87,23 @@ class VentanaEstudioBailes:
         from PIL import Image
 
         prompt_oculto = f"""
-        Eres el sistema de navegación de un robot. Recibes una imagen cenital de 640x480.
+        Eres el sistema de navegación avanzado de un robot. Recibes una imagen cenital de 640x480.
         
-        HEMOS DIBUJADO UNA CUADRÍCULA SOBRE LA IMAGEN PARA AYUDARTE:
-        - Las líneas verticales marcan el eje X (de 0 a 640, crece hacia la derecha).
-        - Las líneas horizontales marcan el eje Y (de 0 a 480, crece hacia abajo).
+        LA CUADRÍCULA (TU REGLA VISUAL):
+        - Las líneas AMARILLAS gruesas con texto marcan las centenas (0, 100, 200...).
+        - Las líneas AZULES CLARAS finas marcan las mitades (50, 150, 250...).
+        - El origen (0,0) está arriba a la izquierda. X crece a la derecha, Y crece hacia abajo.
         
-        TU MISIÓN:
-        1. Mira dónde está el robot y dónde están los obstáculos.
-        2. Usa los números dibujados en la cuadrícula para calcular coordenadas seguras.
-        3. Genera una ruta de puntos (Waypoints) para cumplir la petición del usuario.
-        4. Si debes rodear un objeto, asegúrate de elegir coordenadas que pasen por las "cajas" de la cuadrícula que estén vacías.
+        RAZONAMIENTO ESPACIAL OBLIGATORIO (Chain of Thought):
+        Antes de generar los comandos de movimiento, DEBES analizar la escena escribiendo estas 3 líneas para anclar tu atención geométrica:
+        ANÁLISIS_ROBOT: [coordenadas X, Y donde ves al robot]
+        ANÁLISIS_OBSTÁCULOS: [coordenadas X, Y donde ves objetos a esquivar]
+        ESTRATEGIA: [explica brevemente por qué puntos vas a pasar para rodearlo con seguridad]
         
-        FORMATO ESTRICTO:
-        Responde ÚNICAMENTE con los comandos. Cada línea debe ser: MOVE X Y 0
-        No uses comillas, ni código markdown, ni expliques tu razonamiento.
+        RUTA (FORMATO ESTRICTO):
+        - Tus coordenadas X e Y DEBEN terminar siempre en 0 o en 50 (ej. 150, 200, 350). Prohibido usar números como 143 o 211.
+        - Dale un margen de al menos 100 píxeles a los obstáculos.
+        - Cada punto de la ruta debe estar en una línea nueva que empiece EXACTAMENTE por: MOVE X Y 0
         
         Petición del usuario para el robot {robot}: "{peticion}"
         """
@@ -110,27 +112,35 @@ class VentanaEstudioBailes:
             frame = self.app_padre.capturar_foto_actual()
             
             if frame is not None:
-                # --- NUEVO: VISUAL PROMPTING (DIBUJAR CUADRÍCULA PARA LA IA) ---
-                # Dibujamos líneas verticales (Eje X) cada 100 píxeles
-                for x in range(0, 640, 100):
-                    cv2.line(frame, (x, 0), (x, 480), (0, 255, 255), 1) # Línea amarilla fina
-                    cv2.putText(frame, f"X:{x}", (x+5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                # --- VISUAL PROMPTING DE ALTA RESOLUCIÓN ---
+                # Dibujamos líneas verticales (Eje X) cada 50 píxeles
+                for x in range(0, 640, 50):
+                    es_centena = (x % 100 == 0)
+                    color = (0, 255, 255) if es_centena else (255, 255, 0) # Amarillo para 100s, Cyan para 50s (en BGR)
+                    grosor = 2 if es_centena else 1
+                    cv2.line(frame, (x, 0), (x, 480), color, grosor)
+                    if es_centena:
+                        cv2.putText(frame, f"X:{x}", (x+5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
                 
-                # Dibujamos líneas horizontales (Eje Y) cada 100 píxeles
-                for y in range(0, 480, 100):
-                    cv2.line(frame, (0, y), (640, y), (0, 255, 255), 1) # Línea amarilla fina
-                    cv2.putText(frame, f"Y:{y}", (5, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                # Dibujamos líneas horizontales (Eje Y) cada 50 píxeles
+                for y in range(0, 480, 50):
+                    es_centena = (y % 100 == 0)
+                    color = (0, 255, 255) if es_centena else (255, 255, 0) # Amarillo para 100s, Cyan para 50s (en BGR)
+                    grosor = 2 if es_centena else 1
+                    cv2.line(frame, (0, y), (640, y), color, grosor)
+                    if es_centena:
+                        cv2.putText(frame, f"Y:{y}", (5, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
                 # -----------------------------------------------------------------
 
                 # 2. Convertimos a formato PIL para enviarlo a Gemini
                 imagen_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 imagen_pil = Image.fromarray(imagen_rgb)
                 
-                # Opcional: Guardar la foto con cuadrícula en tu PC para que veas lo que ve la IA
+                # Guardamos la foto para depuración (¡Échale un vistazo en tu carpeta!)
                 imagen_pil.save("foto_enviada_a_IA.jpg") 
                 
                 contenido_a_enviar = [prompt_oculto, imagen_pil]
-                self.app_padre.root.after(0, lambda: self.escribir_log(f"📸 Enviando foto con CUADRÍCULA a la IA para {robot}..."))
+                self.app_padre.root.after(0, lambda: self.escribir_log(f"📸 Enviando foto con SUB-CUADRÍCULA a la IA para {robot}..."))
             else:
                 contenido_a_enviar = prompt_oculto
                 self.app_padre.root.after(0, lambda: self.escribir_log("⚠️ Fallo al usar la cámara. Enviando solo texto a la IA."))
