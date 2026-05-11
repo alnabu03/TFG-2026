@@ -9,7 +9,7 @@ import threading
 #Configuracion de la IA
 GEMINI_API_KEY = "AIzaSyDxa9jIbAPd97xgqOj-f0d1ULgIwdV0je4"
 genai.configure(api_key=GEMINI_API_KEY)
-modelo_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
+modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
 
 
 class VentanaEstudioBailes:
@@ -86,56 +86,65 @@ class VentanaEstudioBailes:
         import cv2
         from PIL import Image
 
-        # Nuevo prompt dándole consciencia espacial a la IA
         prompt_oculto = f"""
-        Eres el sistema de navegación (Pathfinder) de un robot. 
-        Recibes una imagen cenital de una mesa de 640x480 píxeles.
+        Eres el sistema de navegación de un robot. Recibes una imagen cenital de 640x480.
         
-        REGLAS ESPACIALES FUNDAMENTALES (¡CUIDADO CON EL EJE Y!):
-        - El origen (0,0) está en la esquina SUPERIOR IZQUIERDA de la imagen.
-        - El eje X crece hacia la DERECHA (de 0 a 640).
-        - El eje Y crece hacia ABAJO (de 0 a 480).
+        HEMOS DIBUJADO UNA CUADRÍCULA SOBRE LA IMAGEN PARA AYUDARTE:
+        - Las líneas verticales marcan el eje X (de 0 a 640, crece hacia la derecha).
+        - Las líneas horizontales marcan el eje Y (de 0 a 480, crece hacia abajo).
         
         TU MISIÓN:
-        Analiza la imagen, localiza los obstáculos y genera una ruta segura para cumplir la petición del usuario.
-        Si te piden "esquivar" o "rodear" un objeto, DEBES generar al menos 3 o 4 puntos intermedios (Waypoints) que formen un arco o un cuadrado alrededor del objeto, dejando un margen de seguridad amplio (unos 100 píxeles de distancia del obstáculo).
+        1. Mira dónde está el robot y dónde están los obstáculos.
+        2. Usa los números dibujados en la cuadrícula para calcular coordenadas seguras.
+        3. Genera una ruta de puntos (Waypoints) para cumplir la petición del usuario.
+        4. Si debes rodear un objeto, asegúrate de elegir coordenadas que pasen por las "cajas" de la cuadrícula que estén vacías.
         
         FORMATO ESTRICTO:
         Responde ÚNICAMENTE con los comandos. Cada línea debe ser: MOVE X Y 0
-        (Usa siempre 0 para el ángulo, el sistema de bajo nivel se encargará de la fluidez).
         No uses comillas, ni código markdown, ni expliques tu razonamiento.
         
         Petición del usuario para el robot {robot}: "{peticion}"
         """
         try:
-            # 1. Tomamos la foto usando la función que acabamos de crear en el servidor
+            # 1. Tomamos la foto limpia
             frame = self.app_padre.capturar_foto_actual()
             
             if frame is not None:
-                # 2. Convertimos los colores (OpenCV usa BGR, Gemini necesita RGB)
+                # --- NUEVO: VISUAL PROMPTING (DIBUJAR CUADRÍCULA PARA LA IA) ---
+                # Dibujamos líneas verticales (Eje X) cada 100 píxeles
+                for x in range(0, 640, 100):
+                    cv2.line(frame, (x, 0), (x, 480), (0, 255, 255), 1) # Línea amarilla fina
+                    cv2.putText(frame, f"X:{x}", (x+5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                
+                # Dibujamos líneas horizontales (Eje Y) cada 100 píxeles
+                for y in range(0, 480, 100):
+                    cv2.line(frame, (0, y), (640, y), (0, 255, 255), 1) # Línea amarilla fina
+                    cv2.putText(frame, f"Y:{y}", (5, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                # -----------------------------------------------------------------
+
+                # 2. Convertimos a formato PIL para enviarlo a Gemini
                 imagen_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 imagen_pil = Image.fromarray(imagen_rgb)
                 
-                # 3. Empaquetamos TEXTO + IMAGEN
+                # Opcional: Guardar la foto con cuadrícula en tu PC para que veas lo que ve la IA
+                imagen_pil.save("foto_enviada_a_IA.jpg") 
+                
                 contenido_a_enviar = [prompt_oculto, imagen_pil]
-                self.app_padre.root.after(0, lambda: self.escribir_log(f"📸 Enviando foto y petición a la IA para {robot}..."))
+                self.app_padre.root.after(0, lambda: self.escribir_log(f"📸 Enviando foto con CUADRÍCULA a la IA para {robot}..."))
             else:
                 contenido_a_enviar = prompt_oculto
                 self.app_padre.root.after(0, lambda: self.escribir_log("⚠️ Fallo al usar la cámara. Enviando solo texto a la IA."))
 
-            # Usamos generate_content, que es el método oficial para multimodalidad
             respuesta = modelo_ia.generate_content(contenido_a_enviar)
             codigo_generado = respuesta.text.strip()
 
-            # Limpieza extra por si la IA devuelve bloques de código markdown
+            # Limpieza extra
             codigo_generado = codigo_generado.replace("```", "").replace("python", "").replace("text", "").strip()
 
-            # Volcamos el resultado en la caja de texto
             self.app_padre.root.after(0, lambda: self._volcar_resultado_ia(robot, codigo_generado, entry_widget))
         except Exception as e:
             self.app_padre.root.after(0, lambda: messagebox.showerror("Error IA", f"No se pudo conectar con la IA: {e}"))
             self.app_padre.root.after(0, lambda: entry_widget.config(state="normal"))
-
     def _volcar_resultado_ia(self, robot, codigo, entry_widget):
         caja_texto = self.cajas_texto[robot]
         caja_texto.delete("1.0", tk.END)
