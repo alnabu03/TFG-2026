@@ -11,8 +11,8 @@ from vision_Aruco import detectar_poses_robot
 from estudio_bailes import VentanaEstudioBailes
 import math
 
-ARUCO_FRAME_WIDTH = 1280
-ARUCO_FRAME_HEIGHT = 720
+ARUCO_FRAME_WIDTH = 640
+ARUCO_FRAME_HEIGHT = 480
 ARUCO_SAFE_MARGIN_PX = 70
 ALIGN_CTRL_VERSION = "v4.0-go-to-pose-fsm"
 
@@ -121,6 +121,9 @@ class ServerGUI:
         self.usar_pid_servidor = tk.BooleanVar(value=False) # Por defecto, PID en el robot
         tk.Checkbutton(frame_vision, text="💻 Usar PID del Servidor (Experimental)", variable=self.usar_pid_servidor, font=("Arial", 9, "bold"), fg="#1e40af").grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=5)
 
+        self.modo_fluido = tk.BooleanVar(value=False) # Por defecto desactivado
+        tk.Checkbutton(frame_vision, text="Modo Fluido (Ignorar orientación final)", variable=self.modo_fluido, font=("Arial", 9, "bold"), fg="#059669").grid(row=6, column=0, columnspan=2, sticky="w", padx=6, pady=5)
+        
         frame_vision_botones = tk.Frame(frame_vision)
         frame_vision_botones.grid(row=4, column=0, columnspan=2, sticky="w", padx=6, pady=4)
 
@@ -477,8 +480,8 @@ class ServerGUI:
 
             detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50), cv2.aruco.DetectorParameters())
             cap = cv2.VideoCapture(int(fuente) if fuente.isdigit() else fuente)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
             #Todos los robots empiezan en el punto 0 de su ruta
             indices_ruta = {robot_id: 0 for robot_id in rutas.keys()}
@@ -504,7 +507,12 @@ class ServerGUI:
                         distancia = math.sqrt((x_obj - x_act)**2 + (y_obj - y_act)**2)
                         if distancia < 20.0:
                             self._escribir_log_desde_hilo(f"✅ {robot_id} alcanzó el punto {indice_actual+1}/{len(ruta)}")
-                            self.enviar_comando_simple(robot_id, "PARA")
+                            
+                            # Solo frenamos los motores si es el último punto de la ruta, 
+                            # o si el usuario quiere que el movimiento sea robótico y estricto (no fluido)
+                            if (indice_actual == len(ruta) - 1) or not self.modo_fluido.get():
+                                self.enviar_comando_simple(robot_id, "PARA")
+                                
                             indices_ruta[robot_id] += 1 # ¡AVANZAMOS AL SIGUIENTE ESTADO!
                         else:
                             comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
@@ -832,6 +840,10 @@ class ServerGUI:
         VentanaEstudioBailes(app_padre=self, robots_seleccionados=robots_seleccionados, enviar_comando=self.enviar_comando_simple,escribir_log=self.escribir_log)
 
     def _obtener_comando_segun_modo(self, robot_id, x_act, y_act, th_act, x_obj, y_obj, th_obj):
+
+        if hasattr(self, 'modo_fluido') and self.modo_fluido.get():
+            th_obj = th_act
+
         if self.usar_pid_servidor.get():
             # El servidor hace la matemática y nos dice si hemos llegado
             pwm_izq, pwm_der, alcanzado = self._calcular_pid_servidor(robot_id, x_act, y_act, th_act, x_obj, y_obj, th_obj)
@@ -843,6 +855,24 @@ class ServerGUI:
         else:
             # Modo Original: El ESP32 se encarga
             return f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
+
+
+    def capturar_foto_actual(self):
+        # Lee la fuente de la interfaz (0 por defecto)
+        fuente = self.entry_fuente_aruco.get().strip() or "0"
+        cap = cv2.VideoCapture(int(fuente) if fuente.isdigit() else fuente)
+        
+        # Forzamos la resolución de tu tapete
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
+        ok, frame = cap.read()
+        cap.release() # Soltamos la cámara enseguida para no bloquearla
+        
+        if ok:
+            return frame
+        return None
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = ServerGUI(root)

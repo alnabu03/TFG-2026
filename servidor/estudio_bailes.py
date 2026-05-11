@@ -83,28 +83,54 @@ class VentanaEstudioBailes:
         threading.Thread(target=self._procesar_ia_thread, args=(robot, peticion, entry_widget), daemon=True).start()
 
     def _procesar_ia_thread(self, robot, peticion, entry_widget):
+        import cv2
+        from PIL import Image
+
+        # Nuevo prompt dándole consciencia espacial a la IA
         prompt_oculto = f"""
-        Eres el coreógrafo de un enjambre de robots. Tu escenario (la imagen de la cámara) mide 300 x400 píxeles.
-        Tu única función es generar una ruta de puntos (Waypoints) para que el robot se mueva trazando figuras (cuadrados, ochos, líneas).
+        Eres el sistema de navegación (Pathfinder) de un robot. 
+        Recibes una imagen cenital de una mesa de 640x480 píxeles.
         
-        REGLA 1: Solo puedes usar el comando MOVE seguido de X, Y, y THETA (ángulo).
-        REGLA 2: No uses comillas, ni markdown, ni expliques nada. Solo la lista de comandos.
+        REGLAS ESPACIALES FUNDAMENTALES (¡CUIDADO CON EL EJE Y!):
+        - El origen (0,0) está en la esquina SUPERIOR IZQUIERDA de la imagen.
+        - El eje X crece hacia la DERECHA (de 0 a 640).
+        - El eje Y crece hacia ABAJO (de 0 a 480).
         
-        Ejemplo de formato:
-        MOVE 400 300 0
-        MOVE 400 500 90
-        MOVE 600 500 180
+        TU MISIÓN:
+        Analiza la imagen, localiza los obstáculos y genera una ruta segura para cumplir la petición del usuario.
+        Si te piden "esquivar" o "rodear" un objeto, DEBES generar al menos 3 o 4 puntos intermedios (Waypoints) que formen un arco o un cuadrado alrededor del objeto, dejando un margen de seguridad amplio (unos 100 píxeles de distancia del obstáculo).
+        
+        FORMATO ESTRICTO:
+        Responde ÚNICAMENTE con los comandos. Cada línea debe ser: MOVE X Y 0
+        (Usa siempre 0 para el ángulo, el sistema de bajo nivel se encargará de la fluidez).
+        No uses comillas, ni código markdown, ni expliques tu razonamiento.
         
         Petición del usuario para el robot {robot}: "{peticion}"
         """
         try:
-            respuesta = modelo_ia.generate_text(prompt=prompt_oculto) if hasattr(modelo_ia, 'generate_text') else modelo_ia.generate_content(prompt_oculto)
+            # 1. Tomamos la foto usando la función que acabamos de crear en el servidor
+            frame = self.app_padre.capturar_foto_actual()
+            
+            if frame is not None:
+                # 2. Convertimos los colores (OpenCV usa BGR, Gemini necesita RGB)
+                imagen_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                imagen_pil = Image.fromarray(imagen_rgb)
+                
+                # 3. Empaquetamos TEXTO + IMAGEN
+                contenido_a_enviar = [prompt_oculto, imagen_pil]
+                self.app_padre.root.after(0, lambda: self.escribir_log(f"📸 Enviando foto y petición a la IA para {robot}..."))
+            else:
+                contenido_a_enviar = prompt_oculto
+                self.app_padre.root.after(0, lambda: self.escribir_log("⚠️ Fallo al usar la cámara. Enviando solo texto a la IA."))
+
+            # Usamos generate_content, que es el método oficial para multimodalidad
+            respuesta = modelo_ia.generate_content(contenido_a_enviar)
             codigo_generado = respuesta.text.strip()
 
             # Limpieza extra por si la IA devuelve bloques de código markdown
             codigo_generado = codigo_generado.replace("```", "").replace("python", "").replace("text", "").strip()
 
-            # Volcamos el resultado en la caja de texto (usando root.after para volver al hilo principal de Tkinter)
+            # Volcamos el resultado en la caja de texto
             self.app_padre.root.after(0, lambda: self._volcar_resultado_ia(robot, codigo_generado, entry_widget))
         except Exception as e:
             self.app_padre.root.after(0, lambda: messagebox.showerror("Error IA", f"No se pudo conectar con la IA: {e}"))
