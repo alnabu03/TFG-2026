@@ -9,7 +9,7 @@ import threading
 #Configuracion de la IA
 GEMINI_API_KEY = "AIzaSyDxa9jIbAPd97xgqOj-f0d1ULgIwdV0je4"
 genai.configure(api_key=GEMINI_API_KEY)
-modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
+modelo_ia = genai.GenerativeModel('gemini-2.5-pro')
 
 
 class VentanaEstudioBailes:
@@ -93,7 +93,7 @@ class VentanaEstudioBailes:
         - Las líneas AMARILLAS gruesas con texto marcan las centenas (0, 100, 200...).
         - Las líneas AZULES CLARAS finas marcan las mitades (50, 150, 250...).
         - El origen (0,0) está arriba a la izquierda. X crece a la derecha, Y crece hacia abajo.
-        
+        - Ten en cuenta que el robot mide 50x50 pixeles, así que su centro estará a 25 píxeles de su borde, tenlo en cuenta para evitar colisiones
         RAZONAMIENTO ESPACIAL OBLIGATORIO (Chain of Thought):
         Antes de generar los comandos de movimiento, DEBES analizar la escena escribiendo estas 3 líneas para anclar tu atención geométrica:
         ANÁLISIS_ROBOT: [coordenadas X, Y donde ves al robot]
@@ -102,7 +102,7 @@ class VentanaEstudioBailes:
         
         RUTA (FORMATO ESTRICTO):
         - Tus coordenadas X e Y DEBEN terminar siempre en 0 o en 50 (ej. 150, 200, 350). Prohibido usar números como 143 o 211.
-        - Dale un margen de al menos 100 píxeles a los obstáculos.
+        - Teniendo en cuenta lo que mide el robot calcula tu el margen que debemos tener para evitar colisiones.
         - Cada punto de la ruta debe estar en una línea nueva que empiece EXACTAMENTE por: MOVE X Y 0
         
         Petición del usuario para el robot {robot}: "{peticion}"
