@@ -586,16 +586,30 @@ class ServerGUI:
         # Normalizar a [-pi, pi]
         error_ang = math.atan2(math.sin(error_ang), math.cos(error_ang))
         
+        if not hasattr(self, 'ultimo_error_ang_robots'):
+            self.ultimo_error_ang_robots = {}
+            self.ultimo_tiempo_pid_robots = {}
+        if robot_id not in self.ultimo_error_ang_robots:
+            self.ultimo_error_ang_robots[robot_id] = error_ang
+            self.ultimo_tiempo_pid_robots[robot_id] = time.time()
+
+        ahora = time.time()
+        dt = ahora - self.ultimo_tiempo_pid_robots[robot_id]
+        derivada_ang = (error_ang - self.ultimo_error_ang_robots[robot_id]) / dt
+        if dt <= 0.001: dt = 0.001 # Evitar división por cero
+
+        self.ultimo_error_ang_robots[robot_id] = error_ang
+        self.ultimo_tiempo_pid_robots[robot_id] = ahora
         # Ajustes del PID idénticos a tu ESP32
         kp_dist = 0.5
         kp_ang = 60.0
-        
+        kd_ang  = 15.0 # Nuestro nuevo amortiguador
         velocidad_avance = kp_dist * error_dist
         if velocidad_avance > 120: 
             velocidad_avance = 120 # Limitamos para no perder precisión
             
-        velocidad_giro = kp_ang * error_ang
-        if abs(error_ang) > (math.pi / 2.0):
+        velocidad_giro = (kp_ang * error_ang) + (kd_ang * derivada_ang)        
+        if abs(error_ang) > (math.pi / 4.0):
             velocidad_avance = 0 # Si el error es mayor de 90 grados, solo giramos
             
         vel_izquierda = velocidad_avance - velocidad_giro

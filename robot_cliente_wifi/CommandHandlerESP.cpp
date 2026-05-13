@@ -365,6 +365,7 @@ void CommandHandlerESP::calcularYEjecutarPID(){
         float angulo_actual_rad = th_act * (PI /180.0);
         float error_th_final = angulo_final_rad - angulo_actual_rad;
         error_th_final = atan2(sin(error_th_final), cos(error_th_final)); // Buscamos el ángulo más corto
+
         if (abs(error_th_final) < 0.15){
             robot->parar();
             modoPidActivo = false;
@@ -392,14 +393,20 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     float angulo_actual_rad = th_act * PI / 180.0;
     float error_ang = angulo_objetivo_rad - angulo_actual_rad;
     error_ang = atan2(sin(error_ang), cos(error_ang)); // Normalizar a [-pi, pi]
+
+    static float ultimo_error_ang = 0.0;
+    float derivada_ang = (error_ang - ultimo_error_ang) / dt;
+    ultimo_error_ang = error_ang;
+
     //Ajustes del PID (podemos jugar con estos valores)
     float kp_dist = 0.5; //Potencia de avance (el maqueen tiene de 0 a 255)
     float kp_ang = 65; //Potencia de giro el mejor por ahora ha sido de 40
+    float kd_ang  = 15.0; // Potencia de frenado del giro (Amortiguador) -> A probar entre 10 y 30
 
     float velocidad_avance = kp_dist * error_dist;
     if (velocidad_avance > 120) velocidad_avance = 120; // Limitamos la velocidad de avance para que no sea demasiado rápida y pierda precisión
-    float velocidad_giro = kp_ang * error_ang;
-    if (abs(error_ang) > PI / 2) {
+    float velocidad_giro = kp_ang * error_ang + kd_ang * derivada_ang;
+    if (abs(error_ang) > PI / 4.0) {
         velocidad_avance = 0; // Si el error angular es mayor de 45, solo giramos
     }
     float vel_izquierda = velocidad_avance - velocidad_giro;
