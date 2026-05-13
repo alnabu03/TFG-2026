@@ -9,7 +9,7 @@ import threading
 #Configuracion de la IA
 GEMINI_API_KEY = "AIzaSyDxa9jIbAPd97xgqOj-f0d1ULgIwdV0je4"
 genai.configure(api_key=GEMINI_API_KEY)
-modelo_ia = genai.GenerativeModel('gemini-2.5-pro')
+modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
 
 
 class VentanaEstudioBailes:
@@ -87,24 +87,29 @@ class VentanaEstudioBailes:
         from PIL import Image
 
         prompt_oculto = f"""
-        Eres el sistema de navegación avanzado de un robot. Recibes una imagen cenital de 640x480.
+        Eres el sistema de navegación avanzado de un robot móvil que se mueve mediante un controlador PID. Recibes una imagen cenital de 640x480.
         
         LA CUADRÍCULA (TU REGLA VISUAL):
-        - Las líneas AMARILLAS gruesas con texto marcan las centenas (0, 100, 200...).
-        - Las líneas AZULES CLARAS finas marcan las mitades (50, 150, 250...).
-        - El origen (0,0) está arriba a la izquierda. X crece a la derecha, Y crece hacia abajo.
-        - Ten en cuenta que el robot mide 50x50 pixeles, así que su centro estará a 25 píxeles de su borde, tenlo en cuenta para evitar colisiones
-        RAZONAMIENTO ESPACIAL OBLIGATORIO (Chain of Thought):
-        Antes de generar los comandos de movimiento, DEBES analizar la escena escribiendo estas 3 líneas para anclar tu atención geométrica:
-        ANÁLISIS_ROBOT: [coordenadas X, Y donde ves al robot]
-        ANÁLISIS_OBSTÁCULOS: [coordenadas X, Y donde ves objetos a esquivar]
-        ESTRATEGIA: [explica brevemente por qué puntos vas a pasar para rodearlo con seguridad]
+        - Líneas AMARILLAS con texto = Centenas (X:0, X:100, Y:200...).
+        - Líneas AZULES CLARAS = Mitades exactas (50, 150, 250...).
+        - Origen (0,0) arriba a la izquierda. X crece a la DERECHA, Y crece hacia ABAJO.
+        
+        IDENTIFICACIÓN Y VOLUMEN (¡LOS OBJETOS NO SON PUNTOS!):
+        - ROBOT: Cuadrado negro con dibujo blanco (código ArUco). Mide aprox 50x50 píxeles.
+        - OBSTÁCULOS: Si hay obstáculos debes tener en cuenta que tienen anchura y altura. DEBES estimar el recuadro (Bounding Box) visual que ocupa CADA obstáculo.
+        
+        RAZONAMIENTO ESPACIAL (Chain of Thought OBLIGATORIO):
+        Antes de dar la ruta, escribe EXACTAMENTE estas líneas para forzar tu percepción de los volúmenes:
+        ANÁLISIS_ROBOT: [Centro en X, Y]
+        BOUNDING_BOX_OBJETO_1 (SI LO HAY): [X_min a X_max, Y_min a Y_max]
+        BOUNDING_BOX_OBJETO_2 (SI LO HAY): [X_min a X_max, Y_min a Y_max] (Si no hay un segundo objeto, omite esta línea)
+        ESTRATEGIA: [Explica tu ruta garantizando que tus puntos NUNCA pisen el área de los Bounding Boxes. Añade siempre 50px extra de margen de seguridad en X y en Y respecto a esos límites].
         
         RUTA (FORMATO ESTRICTO):
-        - Tus coordenadas X e Y DEBEN terminar siempre en 0 o en 50 (ej. 150, 200, 350). Prohibido usar números como 143 o 211.
-        - Teniendo en cuenta lo que mide el robot calcula tu el margen que debemos tener para evitar colisiones.
-        - Cada punto de la ruta debe estar en una línea nueva que empiece EXACTAMENTE por: MOVE X Y 0
-        
+        - Usa coordenadas que te permitan seguir el trazado que estimes óptimo(puedes usar incrementos de 25 píxeles como 125, 175, 225 si se requiere).
+        - Cada línea debe ser: MOVE X Y 0
+        - Piensa que cuantas menos coordenadas usemos, más fluido será el movimiento, pero recuerda que debemos cumplir con lo que se pide.
+
         Petición del usuario para el robot {robot}: "{peticion}"
         """
         try:
@@ -112,31 +117,49 @@ class VentanaEstudioBailes:
             frame = self.app_padre.capturar_foto_actual()
             
             if frame is not None:
-                # --- VISUAL PROMPTING DE ALTA RESOLUCIÓN ---
-                # Dibujamos líneas verticales (Eje X) cada 50 píxeles
+                # --- VISUAL PROMPTING: Cuadrícula semitransparente + Texto Sólido ---
+                overlay = frame.copy()
+                
+                # 1. Dibujamos SOLO las líneas en la capa transparente
                 for x in range(0, 640, 50):
                     es_centena = (x % 100 == 0)
-                    color = (0, 255, 255) if es_centena else (255, 255, 0) # Amarillo para 100s, Cyan para 50s (en BGR)
+                    color = (0, 255, 255) if es_centena else (255, 255, 0)
                     grosor = 2 if es_centena else 1
-                    cv2.line(frame, (x, 0), (x, 480), color, grosor)
-                    if es_centena:
-                        cv2.putText(frame, f"X:{x}", (x+5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    cv2.line(overlay, (x, 0), (x, 480), color, grosor)
                 
-                # Dibujamos líneas horizontales (Eje Y) cada 50 píxeles
                 for y in range(0, 480, 50):
                     es_centena = (y % 100 == 0)
-                    color = (0, 255, 255) if es_centena else (255, 255, 0) # Amarillo para 100s, Cyan para 50s (en BGR)
+                    color = (0, 255, 255) if es_centena else (255, 255, 0)
                     grosor = 2 if es_centena else 1
-                    cv2.line(frame, (0, y), (640, y), color, grosor)
-                    if es_centena:
-                        cv2.putText(frame, f"Y:{y}", (5, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    cv2.line(overlay, (0, y), (640, y), color, grosor)
+
+                # Fusionamos al 50% para que las líneas se vean bien pero no tapen los obstáculos
+                cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+
+                # 2. Dibujamos los NÚMEROS directamente sobre el frame final (100% opacos)
+                # y les ponemos un "borde negro" para que destaquen sobre la madera
+                for x in range(0, 640, 100):
+                    if x > 0:
+                        texto = f"X:{x}"
+                        # Borde negro (grosor 3)
+                        cv2.putText(frame, texto, (x+5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3)
+                        # Texto principal amarillo (grosor 1)
+                        cv2.putText(frame, texto, (x+5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+
+                for y in range(0, 480, 100):
+                    if y > 0:
+                        texto = f"Y:{y}"
+                        # Borde negro
+                        cv2.putText(frame, texto, (5, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3)
+                        # Texto principal amarillo
+                        cv2.putText(frame, texto, (5, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
                 # -----------------------------------------------------------------
 
                 # 2. Convertimos a formato PIL para enviarlo a Gemini
                 imagen_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 imagen_pil = Image.fromarray(imagen_rgb)
                 
-                # Guardamos la foto para depuración (¡Échale un vistazo en tu carpeta!)
+                # Guardamos la foto para depuración
                 imagen_pil.save("foto_enviada_a_IA.jpg") 
                 
                 contenido_a_enviar = [prompt_oculto, imagen_pil]
