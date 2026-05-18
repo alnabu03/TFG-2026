@@ -85,18 +85,19 @@ class VentanaEstudioBailes:
     def _procesar_ia_thread(self, robot, peticion, entry_widget):
         import cv2
         from PIL import Image
+        from vision_Aruco import detectar_poses_robot 
+        #  - Líneas AZULES CLARAS = Mitades exactas (50, 150, 250...).
 
         prompt_oculto = f"""
         Eres el sistema de navegación avanzado de un robot móvil que se mueve mediante un controlador PID. Recibes una imagen cenital de 640x480.
         
         LA CUADRÍCULA (TU REGLA VISUAL):
         - Líneas AMARILLAS con texto = Centenas (X:0, X:100, Y:200...).
-        - Líneas AZULES CLARAS = Mitades exactas (50, 150, 250...).
         - Origen (0,0) arriba a la izquierda. X crece a la DERECHA, Y crece hacia ABAJO.
         
         IDENTIFICACIÓN Y VOLUMEN (¡LOS OBJETOS NO SON PUNTOS!):
-        - ROBOT: Cuadrado negro con dibujo blanco (código ArUco). Mide aprox 50x50 píxeles.
-        - OBSTÁCULOS: Si hay obstáculos debes tener en cuenta que tienen anchura y altura. DEBES estimar el recuadro (Bounding Box) visual que ocupa CADA obstáculo.
+        - ROBOT: Cuadrado negro con dibujo blanco. IMPORTANTE: Fíjate que tiene un texto azul escrito encima (ej: "ID: 1 X: 230 Y: 380"). Lee ese texto y usa EXACTAMENTE esos números de X e Y como tu punto de partida real.
+        - OBSTÁCULOS: Si hay obstáculos debes tener en cuenta que tienen anchura y altura...
         
         RAZONAMIENTO ESPACIAL (Chain of Thought OBLIGATORIO):
         Antes de dar la ruta, escribe EXACTAMENTE estas líneas para forzar tu percepción de los volúmenes:
@@ -106,7 +107,8 @@ class VentanaEstudioBailes:
         ESTRATEGIA: [Explica tu ruta garantizando que tus puntos NUNCA pisen el área de los Bounding Boxes. Añade siempre 50px extra de margen de seguridad en X y en Y respecto a esos límites].
         
         RUTA (FORMATO ESTRICTO):
-        - Usa coordenadas que te permitan seguir el trazado que estimes óptimo(puedes usar incrementos de 25 píxeles como 125, 175, 225 si se requiere).
+        - Usa coordenadas que te permitan seguir el trazado que estimes óptimo (puedes usar incrementos de 25 píxeles como 125, 175, 225 si se requiere).
+        - IMPORTANTE: NO incluyas la posición actual del robot en la lista. El primer comando MOVE debe ser el siguiente destino, nunca la coordenada donde ya se encuentra.
         - Cada línea debe ser: MOVE X Y 0
         - Piensa que cuantas menos coordenadas usemos, más fluido será el movimiento, pero recuerda que debemos cumplir con lo que se pide.
 
@@ -117,21 +119,31 @@ class VentanaEstudioBailes:
             frame = self.app_padre.capturar_foto_actual()
             
             if frame is not None:
+
+                # Creamos el detector ArUco rápido para esta foto
+                aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+                aruco_params = cv2.aruco.DetectorParameters()
+                detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
+                
+                # Esto detectará el robot y le pintará el texto "ID: 1 X: 230 Y: 350..."
+                poses, frame = detectar_poses_robot(frame, detector)
                 # --- VISUAL PROMPTING: Cuadrícula semitransparente + Texto Sólido ---
                 overlay = frame.copy()
                 
                 # 1. Dibujamos SOLO las líneas en la capa transparente
                 for x in range(0, 640, 50):
-                    es_centena = (x % 100 == 0)
-                    color = (0, 255, 255) if es_centena else (255, 255, 0)
-                    grosor = 2 if es_centena else 1
-                    cv2.line(overlay, (x, 0), (x, 480), color, grosor)
+                    #es_centena = (x % 100 == 0)
+                    #color = (0, 255, 255) if es_centena else (255, 255, 0)
+                    #grosor = 2 if es_centena else 1
+                    #cv2.line(overlay, (x, 0), (x, 480), color, grosor)
+                    cv2.line(overlay, (x, 0), (x, 480), (0, 255, 255), 2) # Línea amarilla
                 
                 for y in range(0, 480, 50):
-                    es_centena = (y % 100 == 0)
-                    color = (0, 255, 255) if es_centena else (255, 255, 0)
-                    grosor = 2 if es_centena else 1
-                    cv2.line(overlay, (0, y), (640, y), color, grosor)
+                    #es_centena = (y % 100 == 0)
+                    #color = (0, 255, 255) if es_centena else (255, 255, 0)
+                    #grosor = 2 if es_centena else 1
+                    #cv2.line(overlay, (0, y), (640, y), color, grosor)
+                    cv2.line(overlay, (0, y), (640, y), (0, 255, 255), 2) # Línea amarilla
 
                 # Fusionamos al 50% para que las líneas se vean bien pero no tapen los obstáculos
                 cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
