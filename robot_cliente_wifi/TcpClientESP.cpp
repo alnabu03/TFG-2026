@@ -22,8 +22,9 @@ void TcpClientESP::connectToServer(String ip, int port, String robotId) {
     Serial.print(":");
     Serial.println(port);
 
-    if (client.connect(ip.c_str(), port)) {
+    if (client.connect(ip.c_str(), port, 1000)) {
         connected = true;
+        client.setNoDelay(true); 
         Serial.println("Conectado al servidor TCP");
 
         String hello = "{\"type\":\"HELLO\",\"robot_id\":\"" + robotId + "\"}\n";

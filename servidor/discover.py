@@ -1,8 +1,20 @@
 import socket, json, time
 
-
-
-
+def get_local_broadcast():
+    # Truco de red para forzar a que nos dé la IP de la antena WiFi real
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 1))
+        local_ip = s.getsockname()[0]
+    except Exception:
+        local_ip = '127.0.0.1'
+    finally:
+        s.close()
+    
+    # Asumimos una máscara /24 típica de router doméstico o universitario
+    ip_parts = local_ip.split('.')
+    ip_parts[3] = '255'
+    return '.'.join(ip_parts)
 class DiscoveryServer:
     def __init__(self):
 
@@ -14,14 +26,17 @@ class DiscoveryServer:
         self.ttl = 35.0 #Tiempo en segundos que se considera que un robot
         self.robot_ports = range(37021, 37031) #Rango de puertos en los que los robots escuchan mensajes de descubrimiento. El servidor enviará mensajes a la dirección de broadcast en cada uno de estos puertos para intentar descubrir los robots.
         self.sock.setblocking(False) #Ponemos el socket en modo no bloqueante para que las llamadas a recvfrom() no bloqueen el programa si no hay mensajes disponibles, sino que lancen una excepción que podemos capturar para manejar esa situación.
-
+        
+        # Guardamos la IP de broadcast dinámica calculada
+        self.broadcast_ip = get_local_broadcast()
+        print(f"INFO RED: Transmitiendo DISCOVER por {self.broadcast_ip}")
     def send_discover(self):
         message = {"type": "DISCOVER",
-                "ip": "192.168.1.255",
+                "ip": "0.0.0.0", # El ESP32 usará udp.remoteIP() de todos modos, esto es solo informativo
                 "tcp_port": 5000}
         data = json.dumps(message).encode('utf-8') #Convertimos el mensaje de descubrimiento a JSON y luego a bytes para enviarlo por la red. El mensaje es un diccionario con una clave "type" que indica que es un mensaje de descubrimiento.
         for port in self.robot_ports:
-            self.sock.sendto(data, ('192.168.1.255', port)) #Enviamos el mensaje de descubrimiento a la dirección de broadcast en cada uno de los puertos que los robots están escuchando. Esto permite que cualquier robot en la red que esté escuchando en esos puertos reciba el mensaje y pueda responder.
+            self.sock.sendto(data, (self.broadcast_ip, port)) #Enviamos el mensaje de descubrimiento a la dirección de broadcast en cada uno de los puertos que los robots están escuchando. Esto permite que cualquier robot en la red que esté escuchando en esos puertos reciba el mensaje y pueda responder.
         print("DISCOVER ENVIADO")
     
     def receive_responses(self):

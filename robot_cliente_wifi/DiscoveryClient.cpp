@@ -54,9 +54,27 @@ void DiscoveryClient::step() {
   }
   else if (mensaje.indexOf("\"type\"") != -1 && mensaje.indexOf("DISCOVER") != -1) {
     serverIp = udp.remoteIP().toString();
-    serverTcpPort = 5000;
-    Serial.print("Ip del servidor guardada:");
-    Serial.println(serverIp);
+    
+    // --- ARREGLO BUG 3: Extraer el tcp_port del JSON de forma dinámica ---
+    int indexPuerto = mensaje.indexOf("\"tcp_port\":");
+    if (indexPuerto != -1) {
+        // Saltamos los caracteres de la etiqueta (son 11 espacios)
+        int inicioValor = indexPuerto + 11;
+        int finValor = mensaje.indexOf("}", inicioValor);
+        
+        if (finValor != -1) {
+            serverTcpPort = mensaje.substring(inicioValor, finValor).toInt();
+        } else {
+            serverTcpPort = 5000; // Seguridad por si la red corta el paquete
+        }
+    } else {
+        serverTcpPort = 5000; // Fallback
+    }
+    
+    Serial.print("Ip del servidor guardada: ");
+    Serial.print(serverIp);
+    Serial.print(" | Puerto TCP a conectar: ");
+    Serial.println(serverTcpPort);
     
     esDiscover = true;
   }

@@ -24,6 +24,7 @@ class TcpServer:
 
             self.sock = s
             print(f"Servidor escuchando en {host}:{port}")
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self.connected = True
             return True
 
@@ -53,6 +54,8 @@ class TcpServer:
                 client_socket.send(b"Bienvenido a mi servidor tcp!\n")
             except OSError:
                 pass
+            except OSError as e: # <-- NUEVO: Escudo anticaídas
+                print(f"Error puntual en accept (ignorado): {e}")
 
             self.pending_clients[client_id_temporal] = time.monotonic()
             self.next_client_id += 1
@@ -80,13 +83,37 @@ class TcpServer:
                 self.clients.pop(client_key, None)
 
     def get_id(self, client_key):
+        if not hasattr(self, 'hello_buffers'):
+            self.hello_buffers = {}
+            
+        if client_key not in self.hello_buffers:
+            self.hello_buffers[client_key] = ""
+            
         try:
-            text = self.clients[client_key].recv(2048).decode("utf-8").strip()
-            if not text:
-                return None
-
-            message = json.loads(text)
-            return message["robot_id"]
+            data = self.clients[client_key].recv(2048)
+            if not data:
+                return None # Cliente desconectado
+                
+            text = data.decode("utf-8")
+            self.hello_buffers[client_key] += text
+            
+            # Solo intentamos parsear si hemos recibido el salto de línea completo
+            if "\n" in self.hello_buffers[client_key]:
+                mensaje_completo = self.hello_buffers[client_key].strip()
+                message = json.loads(mensaje_completo)
+                
+                # Limpiamos el buffer
+                del self.hello_buffers[client_key]
+                return message["robot_id"]
+                
+            return None # Aún no ha llegado el mensaje entero
+            
+        except BlockingIOError:
+            return None
+        except (json.JSONDecodeError, KeyError, OSError) as e:
+            print(f"Error leyendo HELLO del cliente: {e}")
+            self.hello_buffers.pop(client_key, None) # Limpiamos en caso de error
+            return None
 
         except BlockingIOError:
             return None
@@ -119,24 +146,50 @@ class TcpServer:
 
     def leer_mensajes(self):
         mensajes_recibidos = []
+        
+        # 1. Creamos el diccionario global de buffers si no existe
+        if not hasattr(self, 'client_buffers'):
+            self.client_buffers = {}
+
         for client_id, client_socket in list(self.clients.items()):
             if isinstance(client_id, int):
                 continue
+                
+            # 2. Inicializamos el buffer vacío para clientes nuevos
+            if client_id not in self.client_buffers:
+                self.client_buffers[client_id] = ""
+
             try:
                 data = client_socket.recv(2048)
-                if data: 
-                    textos = data.decode("utf-8").strip().split("\n")
-                    for texto in textos:
-                        if texto:
-                            mensajes_recibidos.append((client_id, texto))
+                if data:
+                    texto = data.decode("utf-8")
+                    self.client_buffers[client_id] += texto
+                    
+                    # 3. Solo procesamos si ha llegado el delimitador (\n)
+                    if "\n" in self.client_buffers[client_id]:
+                        # Separamos todo lo recibido por saltos de línea
+                        lineas = self.client_buffers[client_id].split("\n")
+                        
+                        # El último fragmento de 'lineas' es lo que va después del último '\n'.
+                        # Si el mensaje estaba completo, será "". Si estaba a medias, será el resto.
+                        # Lo sacamos de la lista y lo devolvemos al buffer para la próxima vuelta.
+                        self.client_buffers[client_id] = lineas.pop() 
+                        
+                        for linea in lineas:
+                            if linea.strip():
+                                mensajes_recibidos.append((client_id, linea.strip()))
                 else:
                     print(f"Cliente {client_id} desconectado")
                     self.eliminar_cliente(client_id)
+                    self.client_buffers.pop(client_id, None) # Limpiamos memoria
+                    
             except BlockingIOError:
                 pass
             except OSError as e:
                 print(f"Error al leer de {client_id}: {e}")
                 self.eliminar_cliente(client_id)
+                self.client_buffers.pop(client_id, None) # Limpiamos memoria
+                
         return mensajes_recibidos
 
     def enviar_a_robot(self, robot_id: str, mensaje: str):
