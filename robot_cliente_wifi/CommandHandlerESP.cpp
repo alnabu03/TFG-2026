@@ -124,14 +124,16 @@ bool CommandHandlerESP::programarComando(const String& mensaje) {
     }
     comando.trim();
 
+    
     if (
         comando != "AVANZA" &&
         comando != "RETROCEDE" &&
         comando != "IZQUIERDA" &&
         comando != "DERECHA" &&
-        comando != "PARA"
+        comando != "PARA" &&
+        !comando.startsWith("MOTORES") 
     ) {
-        return false;
+        return false; // Si no es ninguno de los anteriores, lo bloqueamos
     }
 
     ScheduledCommand scheduledCmd;

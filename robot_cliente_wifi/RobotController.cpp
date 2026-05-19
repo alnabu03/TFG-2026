@@ -12,7 +12,7 @@ void RobotController::begin() {
     Serial.println("RobotController listo");
 }
 
-// Función interna para motores
+// Función interna para hablar con el hardware I2C
 void setMotor(uint8_t motor, uint8_t direccion, uint8_t velocidad) {
     Wire.beginTransmission(MAQUEEN_I2C_ADDR);
     Wire.write(motor);
@@ -21,57 +21,45 @@ void setMotor(uint8_t motor, uint8_t direccion, uint8_t velocidad) {
     Wire.endTransmission();
 }
 
-// Motores:
-// motor 0 = izquierdo
-// motor 2 = derecho
-// direccion: 0 = adelante, 1 = atrás
+void RobotController::moverVelocidades(int velIzquierda, int velDerecha) {
+    // Motor izquierdo (0)
+    // Direccion: 0 = adelante, 1 = atrás
+    uint8_t dirIzquierda = (velIzquierda >= 0) ? 0 : 1; 
+    uint8_t pwmIzquierda = abs(velIzquierda);
+    if (pwmIzquierda > 255) pwmIzquierda = 255; // Límite de seguridad de hardware
+
+    // Motor derecho (2)
+    uint8_t dirDerecha = (velDerecha >= 0) ? 0 : 1;
+    uint8_t pwmDerecha = abs(velDerecha);
+    if (pwmDerecha > 255) pwmDerecha = 255;     // Límite de seguridad de hardware
+
+    setMotor(0, dirIzquierda, pwmIzquierda);
+    setMotor(2, dirDerecha, pwmDerecha);
+}
+
+// MOVIMIENTOS BÁSICOS 
 
 void RobotController::avanzar() {
     Serial.println("AVANZANDO");
-
-    setMotor(0, 0, velocidad); // izquierda adelante
-    setMotor(2, 0, velocidad); // derecha adelante
+    moverVelocidades(velocidad, velocidad);
 }
 
 void RobotController::retroceder() {
     Serial.println("RETROCEDIENDO");
-
-    setMotor(0, 1, velocidad);
-    setMotor(2, 1, velocidad);
+    moverVelocidades(-velocidad, -velocidad);
 }
 
 void RobotController::girarIzquierda() {
     Serial.println("GIRO IZQUIERDA");
-
-    setMotor(0, 1, velocidad); // izquierda atrás
-    setMotor(2, 0, velocidad); // derecha adelante
+    moverVelocidades(-velocidad, velocidad);
 }
 
 void RobotController::girarDerecha() {
     Serial.println("GIRO DERECHA");
-
-    setMotor(0, 0, velocidad);
-    setMotor(2, 1, velocidad);
+    moverVelocidades(velocidad, -velocidad);
 }
 
 void RobotController::parar() {
     Serial.println("PARADO");
-
-    setMotor(0, 0, 0);
-    setMotor(2, 0, 0);
-}
-
-void RobotController::moverVelocidades(int VelIzquierda, int VelDerecha){
-    //Motor izquierdo (0)
-    if(VelIzquierda >= 0){
-        setMotor(0, 0, VelIzquierda); // adelante
-    } else {
-        setMotor(0, 1, -VelIzquierda); // atrás
-    }
-    //Motor derecho (2)
-    if(VelDerecha >= 0){
-        setMotor(2, 0, VelDerecha); // adelante
-    } else {
-        setMotor(2, 1, -VelDerecha); // atrás
-    }
+    moverVelocidades(0, 0);
 }
