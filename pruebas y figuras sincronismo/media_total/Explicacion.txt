@@ -1,0 +1,9 @@
+La cámara no ve la realidad de forma continua, sino en "fotos" discretas. Si tu cámara va a 30 FPS, toma una foto cada 33.3 ms.
+Fíjate en tu número: 74 ms es prácticamente el equivalente a 2 fotogramas ($33.3 \times 2 = 66.6$ ms) más un pelín de ruido. Es muy probable que el cuello de botella del USB o un pico de CPU en tu ordenador hiciera que OpenCV perdiera o retrasara un par de frames justo en el milisegundo en que el robot arrancaba. El robot se movió a tiempo, pero la cámara "parpadeó" y lo registró tarde.
+El protocolo NTP sincroniza los relojes de los ESP32 con internet, pero no están preguntando la hora constantemente (saturaría la red). Se sincronizan cada cierto tiempo y, entre medias, usan el cristal de cuarzo interno del ESP32 para contar los milisegundos.
+Estos cristales son componentes baratos que se aceleran o frenan con los cambios de temperatura de la placa. Si un ESP32 llevaba 5 minutos sin conectarse al servidor NTP, su reloj interno podría haberse desviado (drift) unos 20-40 ms respecto al de su compañero
+
+En tu interfaz programaste un "Delay de inicio sincronizado" (el lead time, por ejemplo, de 1500 ms). Si en la Prueba 3 hubo una interferencia Wi-Fi brutal en el laboratorio y el paquete TCP tardó más de esos 1500 ms en llegar (por culpa de muchas retransmisiones seguidas), cuando el ESP32 por fin recibió el paquete, el EXEC_AT_MS marcaba una hora del pasado. En ese caso extremo, el ESP32 arranca inmediatamente, pero ya va con retraso físico.
+
+
+En tu documento de Pruebas, no ocultes ese 74.00 ms. Al contrario, exhíbelo. Explica que la media de desfase es casi nula, pero que el sistema presenta outliers (valores atípicos) puntuales del orden de ~70 ms atribuibles a la tolerancia mecánica de los actuadores y al muestreo discreto del sistema de visión artificial (30 Hz). Es el remate perfecto para justificar que dominas el paso del software al hardware.

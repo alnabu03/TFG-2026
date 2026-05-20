@@ -292,38 +292,42 @@ class ServerGUI:
         self.escribir_log("Cámara ARUCO detenida.")
 
     def _bucle_camara_aruco(self, fuente_texto: str):
-        
         if fuente_texto.isdigit():
             fuente_texto = int(fuente_texto)
-        else:
-            fuente = fuente_texto  # Puede ser una URL o ruta de archivo
-
-        cap = cv2.VideoCapture((fuente_texto))
-
+        cap = cv2.VideoCapture(fuente_texto)
         if not cap.isOpened():
-            self._escribir_log_desde_hilo(f"No se pudo abrir la cámara ARUCO con fuente '{fuente_texto}'.")
+            self._escribir_log_desde_hilo(f"No se pudo abrir la cámara ARUCO.")
             return
 
-        detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),cv2.aruco.DetectorParameters(),)
-
+        detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),cv2.aruco.DetectorParameters())
         ventana = "Fase 1 - Detección ARUCO"
+        
+        # --- NUEVO: Inicializar CSV de sincronismo ---
+        with open("sincronismo_aruco.csv", "w") as f:
+            f.write("timestamp,marker_id,x,y,theta\n")
+
         try:
             while not self.detener_camara_aruco_evento.is_set():
                 ok, frame = cap.read()
                 if not ok:
                     time.sleep(0.01)
                     continue
-                poses_detectadas, frame_dibujado = detectar_poses_robot(frame,detector)
+                poses_detectadas, frame_dibujado = detectar_poses_robot(frame, detector)
+                
+                #  Grabar datos en tiempo real ---
+                ts_actual = time.time()
+                with open("sincronismo_aruco.csv", "a") as f:
+                    for marker_id, pose in poses_detectadas.items():
+                        f.write(f"{ts_actual:.3f},{marker_id},{pose['x']},{pose['y']},{pose['theta']:.1f}\n")
+                
                 with self.lock_detecciones_aruco:
                     self.detecciones_aruco_por_marker = {
                         marker_id: pose["theta"] for marker_id, pose in poses_detectadas.items()
                     }
-                    self.detecciones_aruco_ts = time.time()
+                    self.detecciones_aruco_ts = ts_actual
 
                 cv2.imshow(ventana, frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
-                    self._escribir_log_desde_hilo("Cámara ARUCO detenida manualmente desde la ventana (tecla q).")
-                    self.detener_camara_aruco_evento.set()
                     break
         finally:
             cap.release()
