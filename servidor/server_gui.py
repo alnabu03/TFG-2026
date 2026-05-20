@@ -10,7 +10,8 @@ from tcp_server import TcpServer
 from vision_Aruco import detectar_poses_robot
 from estudio_bailes import VentanaEstudioBailes
 import math
-
+from tkinter import filedialog
+import os
 ARUCO_FRAME_WIDTH = 640
 ARUCO_FRAME_HEIGHT = 480
 ARUCO_SAFE_MARGIN_PX = 70
@@ -183,6 +184,12 @@ class ServerGUI:
 
         self.boton_baile_personalizado = tk.Button(frame_bailes,text="Ejecutar baile creado",command=self.ejecutar_baile_personalizado)
         self.boton_baile_personalizado.pack(side="left")
+
+        # ---  BOTONES DE CARGA TXT ---
+        tk.Button(frame_bailes, text="📂 txt EP1", command=lambda: self.cargar_baile_robot("EP1")).pack(side="left", padx=2)
+        tk.Button(frame_bailes, text="📂 txt EP2", command=lambda: self.cargar_baile_robot("EP2")).pack(side="left", padx=2)
+        self.boton_baile_personalizado = tk.Button(frame_bailes,text="Ejecutar baile creado",command=self.ejecutar_baile_personalizado)
+        # -----------------------------------
 
         self.baile_predefinido_var = tk.StringVar(value=list(BAILES_PREDEFINIDOS.keys())[0])
         self.menu_bailes = tk.OptionMenu(frame_bailes, self.baile_predefinido_var, *BAILES_PREDEFINIDOS.keys())
@@ -869,7 +876,40 @@ class ServerGUI:
         else:
             # Modo Original: El ESP32 se encarga
             return f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
-
+        
+        
+    def cargar_baile_robot(self, robot_id):
+        from tkinter import filedialog
+        archivo_ruta = filedialog.askopenfilename(
+            title=f"Seleccionar coreografía para {robot_id}",
+            filetypes=[("Archivos de texto", "*.txt")]
+        )
+        
+        if not archivo_ruta:
+            return 
+            
+        try:
+            with open(archivo_ruta, 'r', encoding='utf-8') as f:
+                lineas = f.readlines()
+            
+            # Extraemos el texto que ya haya en la caja para no borrar al otro robot
+            texto_actual = self.text_baile.get("1.0", tk.END).rstrip()
+            if texto_actual:
+                texto_actual += "\n"
+                
+            # Añadimos las líneas del archivo, inyectando la etiqueta del robot al inicio
+            for linea in lineas:
+                linea_limpia = linea.strip()
+                if linea_limpia and not linea_limpia.startswith("#"):
+                    texto_actual += f"{robot_id} {linea_limpia}\n"
+                    
+            self.text_baile.delete("1.0", tk.END)
+            self.text_baile.insert("1.0", texto_actual + "\n")
+            
+            self.escribir_log(f"Coreografía de {robot_id} cargada y mezclada.")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo leer el archivo: {e}")
 
     def capturar_foto_actual(self):
         # Lee la fuente de la interfaz (0 por defecto)
