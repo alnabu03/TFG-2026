@@ -714,10 +714,13 @@ class ServerGUI:
         for robot_id, texto in mensajes:
             if "ALCANZADO" in texto:
                 self.escribir_log(f"✅ ¡El robot {robot_id} ha llegado a su destino!")
-            else:
-                # Opcional: imprimir otros mensajes que no sean ALCANZADO
-                print(f"Mensaje de {robot_id}: {texto}")
-
+                
+                # --- ESTAS SON LAS LÍNEAS CLAVE PARA DETENER EL CSV ---
+                if self.hilo_alineacion and self.hilo_alineacion.is_alive():
+                    self.detener_alineacion_inicial()
+                    self.escribir_log("🛑 Grabación CSV detenida automáticamente para MATLAB.")
+                # ------------------------------------------------------
+                
         for robot_id in robots_perdidos:
             self.tcp.eliminar_cliente(robot_id)
             self.escribir_log(f"Robot perdido: {robot_id}")
