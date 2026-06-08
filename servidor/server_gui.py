@@ -460,6 +460,10 @@ class ServerGUI:
                         #4. Enviamos por tcp
                         self.enviar_comando_simple(robot_id, comando_pid)
 
+                        if modo_actual == "SERVIDOR" and comando_pid == "PARA":
+                            self._escribir_log_desde_hilo(f"✅ ¡El robot {robot_id} ha llegado a su destino! (Control Servidor)")
+                            self.detener_alineacion_evento.set() # Esto aborta el bucle del CSV automáticamente
+
                 cv2.imshow("Alineación inicial", frame_dibujado)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -606,8 +610,11 @@ class ServerGUI:
 
         ahora = time.time()
         dt = ahora - self.ultimo_tiempo_pid_robots[robot_id]
+        
+        if dt <= 0.001: 
+            dt = 0.001 # Evitar división por cero
+
         derivada_ang = (error_ang - self.ultimo_error_ang_robots[robot_id]) / dt
-        if dt <= 0.001: dt = 0.001 # Evitar división por cero
 
         self.ultimo_error_ang_robots[robot_id] = error_ang
         self.ultimo_tiempo_pid_robots[robot_id] = ahora
