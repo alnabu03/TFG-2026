@@ -1,5 +1,5 @@
 % Leer telemetría
-df = readtable('E-3.csv');
+df = readtable('E-5.csv');
 
 % 1. Calcular el tiempo total
 tiempo_total = max(df.tiempo) - min(df.tiempo);

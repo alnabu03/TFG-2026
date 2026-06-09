@@ -562,7 +562,7 @@ class ServerGUI:
         # Control de histéresis
         if error_dist < 20.0:
             self.fase2_robots[robot_id] = True
-        elif error_dist > 30.0:
+        elif error_dist > 50.0:
             self.fase2_robots[robot_id] = False
 
         if self.fase2_robots[robot_id]:
