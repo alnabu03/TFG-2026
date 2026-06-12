@@ -40,7 +40,7 @@ class VentanaEstudioBailes:
             frame_ia = tk.Frame(frame_pista, bg="#f0f4f8", bd=1, relief="solid")
             frame_ia.pack(fill="x", padx=10, pady=(10, 0), ipady=5)
 
-            tk.Label(frame_ia, text="✨ Pídele un baile a la IA:", bg="#f0f4f8", font=("Arial", 9, "bold")).pack(side="left", padx=10)   
+            tk.Label(frame_ia, text="✨ Pídele coordenadas de movimiento a la IA:", bg="#f0f4f8", font=("Arial", 9, "bold")).pack(side="left", padx=10)   
             
             entry_ia = tk.Entry(frame_ia, font=("Arial", 10))
             entry_ia.pack(side="left", fill="x", expand=True, padx=5)
@@ -65,7 +65,7 @@ class VentanaEstudioBailes:
         self.entry_delay.insert(0, "1500") # Un segundo y medio para que dé tiempo a calcular todo
 
             # Botón Maestro
-        btn_ejecutar = tk.Button(ctrl_frame, text="▶ Ejecutar Coreografía Maestra", bg="#10b981", fg="white", font=("Arial", 11, "bold"), command=self.ejecutar_todo)
+        btn_ejecutar = tk.Button(ctrl_frame, text="▶ Ejecutar", bg="#10b981", fg="white", font=("Arial", 11, "bold"), command=self.ejecutar_todo)
         btn_ejecutar.pack(side = "right")
 
 

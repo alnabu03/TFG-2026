@@ -8,7 +8,7 @@ private:
     int velocidad;
 
 public:
-    RobotController(int vel = 30);
+    RobotController(int vel = 50);
 
     void begin();
 

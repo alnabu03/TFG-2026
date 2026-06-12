@@ -497,7 +497,7 @@ class ServerGUI:
         self.hilo_alineacion.start()
         self.escribir_log("Modo Baile por Waypoints (Máquina de estados) INICIADO.")
 
-    def _bucle_baile_waypoints(self, fuente, mapa_tokens, rutas): #ESTA FUNCION NO LA PODEMOS REFACTORIZAR USANDO EL MENSAJE QUE ENVIA EL ROBOT AL SERVIDOR CUANDO LLEGA A UN OBJETO?
+    def _bucle_baile_waypoints(self, fuente, mapa_tokens, rutas): 
         try:
             mapa = {int(t.split(":")[0]): t.split(":")[1] for t in mapa_tokens}
 
@@ -508,11 +508,22 @@ class ServerGUI:
 
             #Todos los robots empiezan en el punto 0 de su ruta
             indices_ruta = {robot_id: 0 for robot_id in rutas.keys()}
+
+            # Limpiar el CSV al arrancar la coreografía ---
+            with open("telemetria_coreografia.csv", "w") as f:
+                f.write("timestamp,marker_id,x,y,theta\n")
+        # -------------------------------------------------------------------
             while not self.detener_alineacion_evento.is_set():
                 ok, frame = cap.read()
                 if not ok: continue
 
                 poses_detectadas, frame_dibujado = detectar_poses_robot(frame, detector)
+                # Guardar coordenadas frame a frame ---
+                ahora = time.time()
+                with open("telemetria_coreografia.csv", "a") as f:
+                    for marker_id, p in poses_detectadas.items():
+                        f.write(f"{ahora},{marker_id},{p['x']:.1f},{p['y']:.1f},{p['theta']:.1f}\n")
+            # -----------------------------------------------------------
                 pose_por_robot = {mapa[m_id]: p for m_id, p in poses_detectadas.items() if m_id in mapa}
 
                 for robot_id, ruta in rutas.items():

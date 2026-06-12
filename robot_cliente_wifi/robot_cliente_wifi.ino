@@ -6,7 +6,7 @@
 
 TcpClientESP tcpClient;
 WiFiManager wifiManager("iPhone", "hola1234");
-const char* ROBOT_ID = "EP1";
+const char* ROBOT_ID = "EP2";
 DiscoveryClient discoveryClient(ROBOT_ID, 37021);
 CommandHandlerESP* commandHandler = nullptr;
 RobotController robot;
