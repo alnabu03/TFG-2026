@@ -83,6 +83,8 @@ class ServerGUI:
         self.lista_robots = tk.Listbox(contenedor,height=8,selectmode=tk.MULTIPLE,exportselection=False,)
         self.lista_robots.pack(fill="x", pady=(0, 10))
 
+        self.robots_conocidos = set() #Para poner un log cada vez que se conecte un robot
+
         frame_seleccion = tk.Frame(contenedor)
         frame_seleccion.pack(fill="x", pady=(0, 10))
         tk.Button(frame_seleccion, text="Seleccionar todos", command=self.seleccionar_todos).pack(side="left")
@@ -706,6 +708,14 @@ class ServerGUI:
         robots_perdidos = self.discovery.step()
         self.tcp.aceptar()
         mensajes = self.tcp.leer_mensajes()
+
+        # Comparamos los activos actuales con los que ya teníamos fichados
+        activos_actuales = set(self.discovery.robots.keys())
+        nuevos_robots = activos_actuales - self.robots_conocidos
+        
+        for robot_id in nuevos_robots:
+            self.escribir_log(f"¡Nuevo robot conectado: {robot_id}!")
+            self.robots_conocidos.add(robot_id) # Lo añadimos a la memoria
         
         for robot_id, texto in mensajes:
             if "ALCANZADO" in texto:
@@ -718,8 +728,10 @@ class ServerGUI:
             self.tcp.eliminar_cliente(robot_id)
             self.escribir_log(f"Robot perdido: {robot_id}")
 
-        self.refrescar_lista_robots()
+            if robot_id in self.robots_conocidos:
+                self.robots_conocidos.remove(robot_id)
 
+        self.refrescar_lista_robots()
         self.root.after(200, self.update_loop)
 
     def enviar_comando(self, comando):

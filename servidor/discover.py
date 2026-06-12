@@ -47,7 +47,6 @@ class DiscoveryServer:
                 return
 
             text = data.decode('utf-8', errors='replace')
-            print(f"UDP bruto recibido desde {addr}: {repr(text)}")
 
             try:
                 message = json.loads(text)
