@@ -309,6 +309,12 @@ class ServerGUI:
         detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50),cv2.aruco.DetectorParameters(),)
 
         ventana = "Fase 1 - Detección ARUCO"
+        
+        # Limpiar el CSV y poner cabecera al arrancar ---
+        with open("telemetria_coreografia.csv", "w") as f:
+            f.write("timestamp,marker_id,x,y,theta\n")
+        # ---------------------------------------------------------------------
+
         try:
             while not self.detener_camara_aruco_evento.is_set():
                 ok, frame = cap.read()
@@ -316,6 +322,14 @@ class ServerGUI:
                     time.sleep(0.01)
                     continue
                 poses_detectadas, frame_dibujado = detectar_poses_robot(frame,detector)
+                
+                # Guardar en el CSV frame a frame ---
+                ahora = time.time()
+                with open("telemetria_coreografia.csv", "a") as f:
+                    for marker_id, pose in poses_detectadas.items():
+                        f.write(f"{ahora},{marker_id},{pose['x']:.1f},{pose['y']:.1f},{pose['theta']:.1f}\n")
+                # -------------------------------------------------------------------------
+                
                 with self.lock_detecciones_aruco:
                     self.detecciones_aruco_por_marker = {
                         marker_id: pose["theta"] for marker_id, pose in poses_detectadas.items()

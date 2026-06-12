@@ -401,7 +401,7 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     ultimo_error_ang = error_ang;
 
     //Ajustes del PID (podemos jugar con estos valores)
-    float kp_dist = 0.5; //Potencia de avance (el maqueen tiene de 0 a 255)
+    float kp_dist = 0.7; //Potencia de avance (el maqueen tiene de 0 a 255)
     float kp_ang = 65; //Potencia de giro el mejor por ahora ha sido de 40
     float kd_ang  = 15.0; // Potencia de frenado del giro (Amortiguador) -> A probar entre 10 y 30
 
