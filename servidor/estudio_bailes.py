@@ -60,7 +60,7 @@ class VentanaEstudioBailes:
         ctrl_frame = tk.Frame(self.window)
         ctrl_frame.pack(fill = "x", padx=15, pady=15)
 
-        tk.Label(ctrl_frame, text="Delay inicio NTP (ms):").pack(side="left")
+        #tk.Label(ctrl_frame, text="Delay inicio NTP (ms):").pack(side="left")
         self.entry_delay = tk.Entry(ctrl_frame, width=8)
         self.entry_delay.pack(side="left", padx=5)
         self.entry_delay.insert(0, "1500") # Un segundo y medio para que dé tiempo a calcular todo
