@@ -7,7 +7,8 @@ import threading
 
 
 #Configuracion de la IA
-GEMINI_API_KEY = "AIzaSyDxa9jIbAPd97xgqOj-f0d1ULgIwdV0je4"
+# --- IMPORTAMOS LA CLAVE DESDE EL ARCHIVO EXTERNO ---
+from claveApiGemini import GEMINI_API_KEY
 genai.configure(api_key=GEMINI_API_KEY)
 modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
 
