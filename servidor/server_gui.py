@@ -132,8 +132,8 @@ class ServerGUI:
 
         tk.Button(frame_vision_botones,text="Iniciar cámara ARUCO",command=self.iniciar_camara_aruco,).pack(side="left")
         tk.Button(frame_vision_botones,text="Detener cámara ARUCO",command=self.detener_camara_aruco,).pack(side="left", padx=6)
-        tk.Button(frame_vision_botones,text="Iniciar posición inicial",command=self.iniciar_alineacion_inicial,).pack(side="left", padx=6)
-        tk.Button(frame_vision_botones,text="Detener posición inicial",command=self.detener_alineacion_inicial,).pack(side="left", padx=6)
+        tk.Button(frame_vision_botones,text="Iniciar posicionamiento",command=self.iniciar_alineacion_inicial,).pack(side="left", padx=6)
+        tk.Button(frame_vision_botones,text="Detener posicionamiento",command=self.detener_alineacion_inicial,).pack(side="left", padx=6)
         frame_vision.grid_columnconfigure(1, weight=1)
         # Log
         tk.Label(contenedor, text="Log:").pack(anchor="w")
