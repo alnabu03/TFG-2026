@@ -408,8 +408,8 @@ void CommandHandlerESP::calcularYEjecutarPID(){
     float velocidad_avance = kp_dist * error_dist;
     if (velocidad_avance > 120) velocidad_avance = 120; // Limitamos la velocidad de avance para que no sea demasiado rápida y pierda precisión
     float velocidad_giro = kp_ang * error_ang + kd_ang * derivada_ang;
-    if (abs(error_ang) > PI / 4.0) {
-        velocidad_avance = 0; // Si el error angular es mayor de 45, solo giramos
+    if (abs(error_ang) > PI / 2.0) {
+        velocidad_avance = 0; // Si el error angular es mayor de 90, solo giramos
     }
     float vel_izquierda = velocidad_avance - velocidad_giro;
     float vel_derecha = velocidad_avance + velocidad_giro;
