@@ -41,7 +41,7 @@ class VentanaEstudioBailes:
             frame_ia = tk.Frame(frame_pista, bg="#f0f4f8", bd=1, relief="solid")
             frame_ia.pack(fill="x", padx=10, pady=(10, 0), ipady=5)
 
-            tk.Label(frame_ia, text="✨ Pídele coordenadas de movimiento a la IA:", bg="#f0f4f8", font=("Arial", 9, "bold")).pack(side="left", padx=10)   
+            tk.Label(frame_ia, text="Pídele coordenadas de movimiento a la IA:", bg="#f0f4f8", font=("Arial", 9, "bold")).pack(side="left", padx=10)   
             
             entry_ia = tk.Entry(frame_ia, font=("Arial", 10))
             entry_ia.pack(side="left", fill="x", expand=True, padx=5)

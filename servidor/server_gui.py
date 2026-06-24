@@ -122,7 +122,7 @@ class ServerGUI:
         self.boton_autocompletar_mapa.grid(row=3, column=0, columnspan=2, sticky="w", padx=6, pady=(0, 4))
 
         self.usar_pid_servidor = tk.BooleanVar(value=False) # Por defecto, PID en el robot
-        tk.Checkbutton(frame_vision, text="💻 Usar PID del Servidor (Experimental)", variable=self.usar_pid_servidor, font=("Arial", 9, "bold"), fg="#1e40af").grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=5)
+        tk.Checkbutton(frame_vision, text="Usar PID del Servidor", variable=self.usar_pid_servidor, font=("Arial", 9, "bold"), fg="#1e40af").grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=5)
 
         self.modo_fluido = tk.BooleanVar(value=False) # Por defecto desactivado
         tk.Checkbutton(frame_vision, text="Modo Fluido (Ignorar orientación final)", variable=self.modo_fluido, font=("Arial", 9, "bold"), fg="#059669").grid(row=6, column=0, columnspan=2, sticky="w", padx=6, pady=5)
@@ -549,7 +549,7 @@ class ServerGUI:
                                 
                             indices_ruta[robot_id] += 1 # ¡AVANZAMOS AL SIGUIENTE ESTADO!
                         else:
-                            comando_pid = f"PID_DATA {x_act:.1f} {y_act:.1f} {th_act:.1f} {x_obj:.1f} {y_obj:.1f} {th_obj:.1f}"
+                            comando_pid = self._obtener_comando_segun_modo(robot_id,x_act, y_act, th_act,x_obj, y_obj, th_obj)
                             self.enviar_comando_simple(robot_id, comando_pid)
 
                 cv2.imshow("Coreografía Inteligente (Waypoints)", frame_dibujado)
@@ -629,21 +629,24 @@ class ServerGUI:
 
         ahora = time.time()
         dt = ahora - self.ultimo_tiempo_pid_robots[robot_id]
+
+        if dt <= 0.001:
+            dt = 0.001
+
         derivada_ang = (error_ang - self.ultimo_error_ang_robots[robot_id]) / dt
-        if dt <= 0.001: dt = 0.001 # Evitar división por cero
 
         self.ultimo_error_ang_robots[robot_id] = error_ang
         self.ultimo_tiempo_pid_robots[robot_id] = ahora
         # Ajustes del PID idénticos a tu ESP32
-        kp_dist = 0.5
-        kp_ang = 60.0
+        kp_dist = 0.7
+        kp_ang = 65.0
         kd_ang  = 15.0 # Nuestro nuevo amortiguador
         velocidad_avance = kp_dist * error_dist
         if velocidad_avance > 120: 
             velocidad_avance = 120 # Limitamos para no perder precisión
             
         velocidad_giro = (kp_ang * error_ang) + (kd_ang * derivada_ang)        
-        if abs(error_ang) > (math.pi / 4.0):
+        if abs(error_ang) > (math.pi / 2.0):
             velocidad_avance = 0 # Si el error es mayor de 90 grados, solo giramos
             
         vel_izquierda = velocidad_avance - velocidad_giro
@@ -672,7 +675,7 @@ class ServerGUI:
         self.text_log.see(tk.END)
         self.text_log.config(state="disabled")
 
-    def get_robot_seleccionado(self): #????????????????????????????????????????????????????????????????????????????????????????????????
+    def get_robot_seleccionado(self): 
         seleccion = self.lista_robots.curselection()
         if not seleccion:
             return None

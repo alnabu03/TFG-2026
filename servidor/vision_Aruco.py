@@ -41,7 +41,7 @@ def detectar_poses_robot(frame,detector):
             #DIbujamos la línea de dirección (la "nariz" del robot)
             cv2.line(frame, (center_x, center_y), (int(front_x), int(front_y)), (0, 255, 0), 2)
             #Mostramos el ID, y los datos (X,Y,Theta)
-            texto = f"ID: {ids[i][0]} X: {center_x} Y: {center_y} Theta: {theta_deg}"
+            texto = f"ID: {ids[i][0]} X: {center_x} Y: {center_y} Theta: {theta_deg:.2f}"
             cv2.putText(frame, texto, (center_x - 50, center_y - 20), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     return poses, frame
