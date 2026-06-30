@@ -2,14 +2,8 @@
 #include <Arduino.h>
 
 WiFiManager::WiFiManager(const char* ssid, const char* password) {
-  //this->ssid = "WiFi_OliveNet-6FA1A5_5G";
-  //this->password = "PvJyd53v";
-                                        
-  //this->ssid = "iPhone";
-  //this->password = "hola1234";
-
-  this->ssid = "MOVISTAR_A4E8";
-  this->password = "MMV7TJTdd44HUUKT3M3M";
+  this->ssid = "PONER NOMBRE DE LA RED";
+  this->password = "PONER CONTRASEÑA DE LA RED";
 }
 
 bool WiFiManager::connect() {
